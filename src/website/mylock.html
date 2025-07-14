@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>My Lock</title>
+	<link rel="stylesheet" href="css/style.css" />
+	<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+	<script src="js/firebase.js"></script>
+	<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+	<script src="js/mqtt.js"></script>
+	<script src="js/mylock.js"></script>
+</head>
+<body>
+	<div class="container">
+		<h2>🔐 My Lock</h2>
+		<p id="welcome"></p>
+
+		<h3>Change Password</h3>
+		<input type="password" id="oldPass" placeholder="Old Password" />
+		<input type="password" id="confirmOld" placeholder="Confirm Old Password" />
+		<input type="password" id="newPass" placeholder="New Password" />
+		<button onclick="changePassword()">Update Password</button>
+
+		<h3>Control Lock</h3>
+		<button onclick="toggleLock()">🔄 Toggle Lock</button>
+
+		<h3>History</h3>
+		<ul id="historyList"></ul>
+	</div>
+</body>
+</html>
