@@ -1,18 +1,21 @@
-let mqttClient;
+let mqttClient; // Biến toàn cục
 
 function connectMQTT() {
 	mqttClient = mqtt.connect("ws://localhost:9001");
 
 	mqttClient.on("connect", () => {
-		console.log("✅ MQTT Connected");
-		mqttClient.subscribe("door/history");
+		console.log("✅ Kết nối MQTT thành công");
+
+		mqttClient.subscribe("door/status", (err) => {
+			if (!err) {
+				console.log("👂 Đang chờ trạng thái cửa từ ESP32...");
+			} else {
+				console.error("❌ Lỗi đăng ký topic 'door/status':", err.message);
+			}
+		});
 	});
 
-	mqttClient.on("message", (topic, message) => {
-		if (topic === "door/history") {
-			const li = document.createElement("li");
-			li.textContent = message.toString();
-			document.getElementById("historyList").prepend(li);
-		}
+	mqttClient.on("error", (err) => {
+		console.error("❌ Kết nối MQTT thất bại:", err.message);
 	});
 }

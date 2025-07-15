@@ -5,10 +5,27 @@ window.onload = () => {
 			window.location.href = "signin.html";
 		} else {
 			document.getElementById("welcome").textContent = "Xin chào, " + user.email;
-			connectMQTT(); // MQTT sẽ khởi động sau khi đăng nhập thành công
+			connectMQTT();
+
+			// Đợi MQTT kết nối rồi đăng ký lắng nghe message
+			const interval = setInterval(() => {
+				if (mqttClient && mqttClient.connected) {
+					mqttClient.on("message", (topic, message) => {
+						const msg = message.toString();
+
+						if (topic === "door/status") {
+							console.log("📥 Trạng thái cửa từ ESP32:", msg);
+							const el = document.getElementById("door-status");
+							if (el) el.textContent = msg;
+						}
+					});
+					clearInterval(interval);
+				}
+			}, 500);
 		}
 	});
 };
+
 
 function toggleLock() {
 	if (mqttClient && mqttClient.connected) {
@@ -37,3 +54,5 @@ function changePassword() {
 		alert("❌ Không thể kết nối đến MQTT. Vui lòng kiểm tra kết nối.");
 	}
 }
+
+// MQTT listener được gọi trong connectMQTT (ở file mqtt.js)
