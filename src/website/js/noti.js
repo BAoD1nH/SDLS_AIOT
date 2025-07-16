@@ -44,29 +44,32 @@ export async function sendPushNotification(userData, lockPassword) {
     const sound = "1";
     const vibration = "1";
 
-    let xhttp = new XMLHttpRequest();
-    xhttp.open("POST", "https://www.pushsafer.com/api", true);
-    xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+    try {
+        const response = await fetch("https://www.pushsafer.com/api", {
+            method: "POST",
+            headers: {
+                "Content-type": "application/x-www-form-urlencoded"
+            },
+            body: `t=${encodeURIComponent(title)}&m=${encodeURIComponent(message)}&s=${sound}&v=${vibration}&d=${encodeURIComponent(deviceID)}&k=${encodeURIComponent(apiKey)}`
+        });
 
-    xhttp.onreadystatechange = function () {
-        if (xhttp.readyState === XMLHttpRequest.DONE) {
-            if (xhttp.status === 200) {
-                const result = JSON.parse(xhttp.responseText);
-                console.log('PushSafer API response:', result);
+        if (response.ok) {
+            const result = await response.json();
+            console.log('PushSafer API response:', result);
 
-                if (result.status === 1) {
-                    alert('Push notification sent successfully.');
-                } else {
-                    alert('Failed to send push notification. Error: ' + result.error);
-                }
+            if (result.status === 1) {
+                alert('Push notification sent successfully.');
             } else {
-                console.error('Failed to send push notification. Status:', xhttp.status);
-                alert('Failed to send push notification. Please check the console for more details.');
+                alert('Failed to send push notification. Error: ' + result.error);
             }
+        } else {
+            console.error('Failed to send push notification. Status:', response.status);
+            alert('Failed to send push notification. Please check the console for more details.');
         }
-    };
-
-    xhttp.send(`t=${encodeURIComponent(title)}&m=${encodeURIComponent(message)}&s=${sound}&v=${vibration}&d=${encodeURIComponent(deviceID)}&k=${encodeURIComponent(apiKey)}`);
+    } catch (error) {
+        console.error('Error sending push notification:', error);
+        alert('Failed to send push notification. Please check the console for more details.');
+    }
 }
 
 // Send the Push Notification to the deviceID - PushSafer - when the DOOR LOCK detected any illegal activity
