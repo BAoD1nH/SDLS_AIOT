@@ -1,7 +1,7 @@
 // Using PushSafer
 // Find the deviceID by device name though API provided by PushSafer
 async function getDeviceIDByDeviceName(userData) {
-    const apiKey = "PuTYt4lh8MO31Brkcp38";
+    const apiKey = process.env.PUSHSAFER_API_KEY;
     const email = "nguyencongtuan0810@gmail.com";
     const account = `${userData.Email}`;
 
