@@ -1,7 +1,7 @@
 // Using PushSafer
 // Find the deviceID by device name though API provided by PushSafer
 async function getDeviceIDByDeviceName(userData) {
-    const apiKey = process.env.PUSHSAFER_API_KEY;
+    const apiKey = "PuTYt4lh8MO31Brkcp38";
     const email = "nguyencongtuan0810@gmail.com";
     const account = `${userData.Email}`;
 
@@ -40,36 +40,33 @@ export async function sendPushNotification(userData, lockPassword) {
 
     const apiKey = "PuTYt4lh8MO31Brkcp38";
     const title = "Lock Password Updated";
-    const message = `Hi ${userData.Name}, your lock password has been successfully updated.`;
+    const message = `Hi ${userData.Name}, your lock password has been updated to: ${lockPassword}`;
     const sound = "1";
     const vibration = "1";
 
-    try {
-        const response = await fetch("https://www.pushsafer.com/api", {
-            method: "POST",
-            headers: {
-                "Content-type": "application/x-www-form-urlencoded"
-            },
-            body: `t=${encodeURIComponent(title)}&m=${encodeURIComponent(message)}&s=${sound}&v=${vibration}&d=${encodeURIComponent(deviceID)}&k=${encodeURIComponent(apiKey)}`
-        });
+    let xhttp = new XMLHttpRequest();
+    xhttp.open("POST", "https://www.pushsafer.com/api", true);
+    xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
 
-        if (response.ok) {
-            const result = await response.json();
-            console.log('PushSafer API response:', result);
+    xhttp.onreadystatechange = function () {
+        if (xhttp.readyState === XMLHttpRequest.DONE) {
+            if (xhttp.status === 200) {
+                const result = JSON.parse(xhttp.responseText);
+                console.log('PushSafer API response:', result);
 
-            if (result.status === 1) {
-                alert('Push notification sent successfully.');
+                if (result.status === 1) {
+                    alert('Push notification sent successfully.');
+                } else {
+                    alert('Failed to send push notification. Error: ' + result.error);
+                }
             } else {
-                alert('Failed to send push notification. Error: ' + result.error);
+                console.error('Failed to send push notification. Status:', xhttp.status);
+                alert('Failed to send push notification. Please check the console for more details.');
             }
-        } else {
-            console.error('Failed to send push notification. Status:', response.status);
-            alert('Failed to send push notification. Please check the console for more details.');
         }
-    } catch (error) {
-        console.error('Error sending push notification:', error);
-        alert('Failed to send push notification. Please check the console for more details.');
-    }
+    };
+
+    xhttp.send(`t=${encodeURIComponent(title)}&m=${encodeURIComponent(message)}&s=${sound}&v=${vibration}&d=${encodeURIComponent(deviceID)}&k=${encodeURIComponent(apiKey)}`);
 }
 
 // Send the Push Notification to the deviceID - PushSafer - when the DOOR LOCK detected any illegal activity
@@ -121,7 +118,7 @@ export async function sendDoorOpenNotification(userData) {
         return;
     }
 
-    const apiKey = DOOR_OPEN_API_KEY; // Using centralized API key for door open notifications
+    const apiKey = "bdVop1HtPdwgAyw2SMQu";
     const title = "Door Lock Opened";
     const message = `Hi ${userData.Name}, your door lock was successfully opened.`;
     const sound = "1";
