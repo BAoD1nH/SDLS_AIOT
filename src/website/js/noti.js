@@ -40,7 +40,7 @@ export async function sendPushNotification(userData, lockPassword) {
 
     const apiKey = "PuTYt4lh8MO31Brkcp38";
     const title = "Lock Password Updated";
-    const message = `Hi ${userData.Name}, your lock password has been updated to: ${lockPassword}`;
+    const message = `Hi ${userData.Name}, your lock password has been successfully updated.`;
     const sound = "1";
     const vibration = "1";
 
