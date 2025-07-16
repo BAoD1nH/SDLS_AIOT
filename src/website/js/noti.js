@@ -121,7 +121,7 @@ export async function sendDoorOpenNotification(userData) {
         return;
     }
 
-    const apiKey = "bdVop1HtPdwgAyw2SMQu";
+    const apiKey = DOOR_OPEN_API_KEY; // Using centralized API key for door open notifications
     const title = "Door Lock Opened";
     const message = `Hi ${userData.Name}, your door lock was successfully opened.`;
     const sound = "1";
