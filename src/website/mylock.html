@@ -9,24 +9,23 @@
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script src="js/firebase.js"></script>
     <script src="js/mqtt.js"></script>
-    <script src="js/mylock.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col">
+<body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
     <!-- Navigation Bar -->
-    <nav class="bg-white shadow-md">
+    <nav class="bg-gray-800 shadow-md">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
                     <img src="assets/logo.png" alt="MyLock Logo" class="h-8 w-8 mr-2">
-                    <a href="index.html" class="text-xl font-bold text-indigo-600">MyLock</a>
+                    <a href="index.html" class="text-xl font-bold text-gray-300">MyLock</a>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <a href="index.html" class="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">Home</a>
-                    <a href="dashboard.html" class="bg-indigo-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">Dashboard</a>
-                    <a href="signup.html" class="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">Sign Up</a>
-                    <a href="signin.html" class="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">Sign In</a>
-                    <button onclick="logout()" class="text-gray-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">Log Out</button>
+                    <a href="index.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Home</a>
+                    <a href="dashboard.html" class="bg-gray-600 text-gray-200 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-500">Dashboard</a>
+                    <a href="signup.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign Up</a>
+                    <a href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign In</a>
+                    <button onclick="logout()" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Log Out</button>
                 </div>
             </div>
         </div>
@@ -36,56 +35,56 @@
     <div class="flex-grow py-12 px-4 sm:px-6 lg:px-8">
         <div class="max-w-4xl mx-auto space-y-8">
             <div class="text-center">
-                <h2 class="text-3xl font-extrabold text-gray-900">🔐 MyLock Dashboard</h2>
-                <p id="welcome" class="mt-2 text-lg text-gray-600"></p>
-                <p id="door-status" class="mt-2 text-lg font-medium text-gray-800">Đang chờ trạng thái cửa...</p>
+                <h2 class="text-3xl font-extrabold text-gray-200">🔐 MyLock Dashboard</h2>
+                <p id="welcome" class="mt-2 text-lg text-gray-400"></p>
+                <p id="door-status" class="mt-2 text-lg font-medium text-gray-200">Đang chờ trạng thái cửa...</p>
             </div>
 
             <!-- Control Sections -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <!-- Change Password Section -->
-                <div class="bg-white p-6 rounded-xl shadow-lg">
-                    <h3 class="text-xl font-bold text-gray-900 mb-4">Change Password</h3>
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold text-gray-200 mb-4">Change Password</h3>
                     <div class="space-y-4">
                         <div>
                             <label for="oldPass" class="sr-only">Old Password</label>
-                            <input id="oldPass" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Old Password">
+                            <input id="oldPass" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Old Password">
                         </div>
                         <div>
                             <label for="confirmOld" class="sr-only">Confirm Old Password</label>
-                            <input id="confirmOld" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Confirm Old Password">
+                            <input id="confirmOld" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Confirm Old Password">
                         </div>
                         <div>
                             <label for="newPass" class="sr-only">New Password</label>
-                            <input id="newPass" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="New Password">
+                            <input id="newPass" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="New Password">
                         </div>
-                        <button onclick="changePassword()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <button onclick="changePassword()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
                             Update Password
                         </button>
                     </div>
                 </div>
 
                 <!-- Lock Control and Toggles -->
-                <div class="bg-white p-6 rounded-xl shadow-lg">
-                    <h3 class="text-xl font-bold text-gray-900 mb-4">Lock Controls</h3>
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold text-gray-200 mb-4">Lock Controls</h3>
                     <div class="space-y-4">
-                        <button onclick="toggleLock()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <button onclick="toggleLock()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
                             🔄 Toggle Lock
                         </button>
                         <div class="flex items-center justify-between">
-                            <span class="text-sm font-medium text-gray-900">Two-Factor Authentication (2FA)</span>
+                            <span class="text-sm font-medium text-gray-200">Two-Factor Authentication (2FA)</span>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" id="twoFA" class="sr-only peer" onchange="toggle2FA()">
-                                <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-indigo-600"></div>
-                                <div class="absolute w-4 h-4 bg-white rounded-full top-1 left-1 peer-checked:translate-x-5 transition-transform"></div>
+                                <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-gray-400"></div>
+                                <div class="absolute w-4 h-4 bg-gray-200 rounded-full top-1 left-1 peer-checked:translate-x-5 transition-transform"></div>
                             </label>
                         </div>
                         <div class="flex items-center justify-between">
-                            <span class="text-sm font-medium text-gray-900">FaceID Unlock</span>
+                            <span class="text-sm font-medium text-gray-200">FaceID Unlock</span>
                             <label class="relative inline-flex items-center cursor-pointer">
                                 <input type="checkbox" id="faceID" class="sr-only peer" onchange="toggleFaceID()">
-                                <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-indigo-600"></div>
-                                <div class="absolute w-4 h-4 bg-white rounded-full top-1 left-1 peer-checked:translate-x-5 transition-transform"></div>
+                                <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-gray-400"></div>
+                                <div class="absolute w-4 h-4 bg-gray-200 rounded-full top-1 left-1 peer-checked:translate-x-5 transition-transform"></div>
                             </label>
                         </div>
                     </div>
@@ -93,21 +92,148 @@
             </div>
 
             <!-- History Section -->
-            <div class="bg-white p-6 rounded-xl shadow-lg">
-                <h3 class="text-xl font-bold text-gray-900 mb-4">History</h3>
-                <ul id="historyList" class="text-gray-600 space-y-2"></ul>
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-bold text-gray-200 mb-4">History</h3>
+                <ul id="historyList" class="text-gray-400 space-y-2"></ul>
             </div>
         </div>
     </div>
 
     <!-- Footer -->
-    <footer class="bg-gray-800 text-white py-6">
+    <footer class="bg-gray-900 text-gray-400 py-6">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <p>© 2025 MyLock. All rights reserved.</p>
         </div>
     </footer>
 
     <script>
+        // MQTT Client Setup
+        const clientId = 'mylock_' + Math.random().toString(16).slice(3);
+        const client = mqtt.connect('wss://your-mqtt-broker:8883', { clientId });
+
+        // MQTT Topics
+        const lockTopic = 'mylock/lock/control';
+        const twoFATopic = 'mylock/2fa/control';
+        const faceIDTopic = 'mylock/faceid/control';
+        const passwordTopic = 'mylock/password/control';
+        const statusTopic = 'mylock/lock/status';
+        const historyTopic = 'mylock/history';
+
+        // Initialize Dashboard
+        function initializeDashboard() {
+            firebase.auth().onAuthStateChanged((user) => {
+                if (user) {
+                    document.getElementById('welcome').textContent = `Welcome, ${user.email}`;
+                } else {
+                    window.location.href = 'signin.html';
+                }
+            });
+
+            client.on('connect', () => {
+                console.log('Connected to MQTT broker');
+                client.subscribe(statusTopic, (err) => {
+                    if (!err) console.log(`Subscribed to ${statusTopic}`);
+                });
+                client.subscribe(historyTopic, (err) => {
+                    if (!err) console.log(`Subscribed to ${historyTopic}`);
+                });
+            });
+
+            client.on('message', (topic, message) => {
+                const msg = message.toString();
+                if (topic === statusTopic) {
+                    document.getElementById('door-status').textContent = `Door: ${msg}`;
+                } else if (topic === historyTopic) {
+                    const historyList = document.getElementById('historyList');
+                    const li = document.createElement('li');
+                    li.textContent = `${new Date().toLocaleString()}: ${msg}`;
+                    historyList.prepend(li);
+                    while (historyList.children.length > 10) {
+                        historyList.removeChild(historyList.lastChild);
+                    }
+                }
+            });
+        }
+
+        // Toggle Lock
+        function toggleLock() {
+            const status = document.getElementById('door-status').textContent.includes('Locked') ? 'unlock' : 'lock';
+            client.publish(lockTopic, status, { qos: 1 }, (err) => {
+                if (!err) {
+                    document.getElementById('door-status').textContent = `Door: ${status.charAt(0).toUpperCase() + status.slice(1)}ing...`;
+                } else {
+                    alert('Error sending lock command');
+                }
+            });
+        }
+
+        // Toggle 2FA
+        function toggle2FA() {
+            const isEnabled = document.getElementById('twoFA').checked;
+            client.publish(twoFATopic, isEnabled ? 'enable' : 'disable', { qos: 1 }, (err) => {
+                if (!err) {
+                    alert(`2FA ${isEnabled ? 'enabled' : 'disabled'}`);
+                } else {
+                    alert('Error toggling 2FA');
+                }
+            });
+        }
+
+        // Toggle FaceID
+        function toggleFaceID() {
+            const isEnabled = document.getElementById('faceID').checked;
+            client.publish(faceIDTopic, isEnabled ? 'enable' : 'disable', { qos: 1 }, (err) => {
+                if (!err) {
+                    alert(`FaceID ${isEnabled ? 'enabled' : 'disabled'}`);
+                } else {
+                    alert('Error toggling FaceID');
+                }
+            });
+        }
+
+        // Change Password
+        function changePassword() {
+            const oldPass = document.getElementById('oldPass').value;
+            const confirmOld = document.getElementById('confirmOld').value;
+            const newPass = document.getElementById('newPass').value;
+
+            if (oldPass !== confirmOld) {
+                alert('Old passwords do not match!');
+                return;
+            }
+
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                alert('No user is signed in');
+                return;
+            }
+
+            const credential = firebase.auth.EmailAuthProvider.credential(user.email, oldPass);
+            user.reauthenticateWithCredential(credential)
+                .then(() => {
+                    user.updatePassword(newPass)
+                        .then(() => {
+                            client.publish(passwordTopic, newPass, { qos: 1 }, (err) => {
+                                if (!err) {
+                                    alert('Password updated successfully!');
+                                    document.getElementById('oldPass').value = '';
+                                    document.getElementById('confirmOld').value = '';
+                                    document.getElementById('newPass').value = '';
+                                } else {
+                                    alert('Error sending password to device');
+                                }
+                            });
+                        })
+                        .catch((error) => {
+                            alert('Error updating password: ' + error.message);
+                        });
+                })
+                .catch((error) => {
+                    alert('Error re-authenticating: ' + error.message);
+                });
+        }
+
+        // Logout
         function logout() {
             firebase.auth().signOut()
                 .then(() => {
@@ -119,17 +245,8 @@
                 });
         }
 
-        function toggle2FA() {
-            const isEnabled = document.getElementById('twoFA').checked;
-            // Implement 2FA toggle logic here (e.g., MQTT or Firebase update)
-            alert(`2FA ${isEnabled ? 'enabled' : 'disabled'}`);
-        }
-
-        function toggleFaceID() {
-            const isEnabled = document.getElementById('faceID').checked;
-            // Implement FaceID toggle logic here (e.g., MQTT or Firebase update)
-            alert(`FaceID ${isEnabled ? 'enabled' : 'disabled'}`);
-        }
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', initializeDashboard);
     </script>
 </body>
 </html>
