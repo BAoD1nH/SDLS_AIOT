@@ -11,7 +11,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
-    <!-- Navigation Bar -->
     <nav class="bg-gray-800 shadow-md">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
@@ -21,7 +20,7 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     <a href="index.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Home</a>
-                    <a href="dashboard.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
+                    <a href="mylock.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
                     <a href="signup.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign Up</a>
                     <a href="signin.html" class="bg-gray-600 text-gray-200 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-500">Sign In</a>
                     <button onclick="logout()" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Log Out</button>
@@ -30,7 +29,6 @@
         </div>
     </nav>
 
-    <!-- Sign In Form -->
     <div class="flex-grow flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div class="max-w-md w-full space-y-8 bg-gray-800 p-8 rounded-xl shadow-lg">
             <div>
@@ -81,17 +79,19 @@
                 alert('Please enter your email address first.');
             }
         }
-
-        function logout() {
-            firebase.auth().signOut()
-                .then(() => {
-                    alert('Logged out successfully!');
-                    window.location.href = 'signin.html';
-                })
-                .catch((error) => {
-                    alert('Error: ' + error.message);
-                });
-        }
+    function logout() {
+        firebase.auth().signOut()
+            .then(() => {
+                alert('Đã đăng xuất thành công!');
+                // Xóa thông tin đăng nhập khỏi localStorage
+                localStorage.removeItem('isLoggedIn');
+                localStorage.removeItem('userEmail');
+                window.location.href = 'signin.html';
+            })
+            .catch((error) => {
+                alert('Lỗi: ' + error.message);
+            });
+    }
     </script>
 </body>
 </html>

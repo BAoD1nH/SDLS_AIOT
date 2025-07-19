@@ -17,7 +17,7 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     <a href="index.html" class="bg-gray-600 text-gray-200 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-500">Home</a>
-                    <a href="dashboard.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
+                    <a href="mylock.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
                     <a href="signup.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign Up</a>
                     <a href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign In</a>
                     <button onclick="logout()" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Log Out</button>
@@ -68,17 +68,20 @@
         </div>
     </footer>
 
-    <script>
-        function logout() {
-            firebase.auth().signOut()
-                .then(() => {
-                    alert('Logged out successfully!');
-                    window.location.href = 'signin.html';
-                })
-                .catch((error) => {
-                    alert('Error: ' + error.message);
-                });
-        }
+        <script>
+    function logout() {
+        firebase.auth().signOut()
+            .then(() => {
+                alert('Đã đăng xuất thành công!');
+                // Xóa thông tin đăng nhập khỏi localStorage
+                localStorage.removeItem('isLoggedIn');
+                localStorage.removeItem('userEmail');
+                window.location.href = 'signin.html';
+            })
+            .catch((error) => {
+                alert('Lỗi: ' + error.message);
+            });
+    }
     </script>
 </body>
 </html>

@@ -11,7 +11,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
-    <!-- Navigation Bar -->
     <nav class="bg-gray-800 shadow-md">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
@@ -21,7 +20,7 @@
                 </div>
                 <div class="flex items-center space-x-4">
                     <a href="index.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Home</a>
-                    <a href="dashboard.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
+                    <a href="mylock.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
                     <a href="signup.html" class="bg-gray-600 text-gray-200 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-500">Sign Up</a>
                     <a href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign In</a>
                     <button onclick="logout()" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Log Out</button>
@@ -30,34 +29,33 @@
         </div>
     </nav>
 
-    <!-- Sign Up Form -->
     <div class="flex-grow flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div class="max-w-md w-full space-y-8 bg-gray-800 p-8 rounded-xl shadow-lg">
             <div>
-                <h2 class="text-center text-3xl font-extrabold text-gray-200">Create your account</h2>
+                <h2 class="text-center text-3xl font-extrabold text-gray-200">Tạo tài khoản</h2>
                 <p class="mt-2 text-center text-sm text-gray-400">
-                    Already have an account? <a href="signin.html" class="font-medium text-gray-300 hover:text-gray-200">Sign in</a>
+                    Đã có tài khoản? <a href="signin.html" class="font-medium text-gray-300 hover:text-gray-200">Đăng nhập</a>
                 </p>
             </div>
             <div class="mt-8 space-y-6">
                 <div class="rounded-md shadow-sm -space-y-px">
                     <div>
-                        <label for="email" class="sr-only">Email address</label>
-                        <input id="email" name="email" type="email" required class="appearance-none rounded-t-md relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Email address">
+                        <label for="email" class="sr-only">Địa chỉ email</label>
+                        <input id="email" name="email" type="email" required class="appearance-none rounded-t-md relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Địa chỉ email">
                     </div>
                     <div>
-                        <label for="password" class="sr-only">Password</label>
-                        <input id="password" name="password" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Password">
+                        <label for="password" class="sr-only">Mật khẩu</label>
+                        <input id="password" name="password" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Mật khẩu">
                     </div>
                     <div>
-                        <label for="confirm-password" class="sr-only">Confirm Password</label>
-                        <input id="confirm-password" name="confirm-password" type="password" required class="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Confirm Password">
+                        <label for="confirm-password" class="sr-only">Xác nhận mật khẩu</label>
+                        <input id="confirm-password" name="confirm-password" type="password" required class="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Xác nhận mật khẩu">
                     </div>
                 </div>
 
                 <div>
                     <button onclick="signUp()" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-                        Sign up
+                        Đăng ký
                     </button>
                 </div>
             </div>
@@ -65,36 +63,19 @@
     </div>
 
     <script>
-        function signUp() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const confirmPassword = document.getElementById('confirm-password').value;
-
-            if (password !== confirmPassword) {
-                alert('Passwords do not match!');
-                return;
-            }
-
-            firebase.auth().createUserWithEmailAndPassword(email, password)
-                .then((userCredential) => {
-                    alert('Account created successfully!');
-                    window.location.href = 'signin.html';
-                })
-                .catch((error) => {
-                    alert('Error: ' + error.message);
-                });
-        }
-
-        function logout() {
-            firebase.auth().signOut()
-                .then(() => {
-                    alert('Logged out successfully!');
-                    window.location.href = 'signin.html';
-                })
-                .catch((error) => {
-                    alert('Error: ' + error.message);
-                });
-        }
-    </script>
+    function logout() {
+        firebase.auth().signOut()
+            .then(() => {
+                alert('Đã đăng xuất thành công!');
+                // Xóa thông tin đăng nhập khỏi localStorage
+                localStorage.removeItem('isLoggedIn');
+                localStorage.removeItem('userEmail');
+                window.location.href = 'signin.html';
+            })
+            .catch((error) => {
+                alert('Lỗi: ' + error.message);
+            });
+    }
+</script>
 </body>
 </html>
