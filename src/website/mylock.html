@@ -1,33 +1,117 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-	<title>My Lock</title>
-	<link rel="stylesheet" href="css/style.css" />
-	<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-	<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-	<script src="js/firebase.js"></script>
-	<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-	<script src="js/mqtt.js"></script>
-	<script src="js/mylock.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyLock Dashboard</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="js/firebase.js"></script>
+    <script src="js/mqtt.js"></script>
+    <script src="js/noti.js"></script>
+    <script src="js/mylock.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
+<body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
+    <nav class="bg-gray-800 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <img src="assets/logo.png" alt="MyLock Logo" class="h-8 w-8 mr-2">
+                    <a href="index.html" class="text-xl font-bold text-gray-300">MyLock</a>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <a href="index.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Home</a>
+                    <a href="mylock.html" class="bg-gray-600 text-gray-200 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-500">Dashboard</a>
+                    <a href="signup.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign Up</a>
+                    <a href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign In</a>
+                    <button onclick="logout()" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Đăng xuất</button>
+                </div>
+            </div>
+        </div>
+    </nav>
 
-<body>
-	<p id="door-status">Đang chờ trạng thái cửa...</p>
-	<div class="container">
-		<h2>🔐 My Lock</h2>
-		<p id="welcome"></p>
+    <div class="flex-grow py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-4xl mx-auto space-y-8">
+            <div class="text-center">
+                <h2 class="text-3xl font-extrabold text-gray-200">🔐 MyLock Dashboard</h2>
+                <p id="welcome" class="mt-2 text-lg text-gray-400">Đang kiểm tra phiên đăng nhập...</p>
+                <p id="door-status" class="mt-2 text-lg font-medium text-gray-200">Đang chờ trạng thái cửa...</p>
+            </div>
 
-		<h3>Change Password</h3>
-		<input type="password" id="oldPass" placeholder="Old Password" />
-		<input type="password" id="confirmOld" placeholder="Confirm Old Password" />
-		<input type="password" id="newPass" placeholder="New Password" />
-		<button onclick="changePassword()">Update Password</button>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold text-gray-200 mb-4">Đổi Mật Khẩu</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="oldPass" class="sr-only">Mật khẩu cũ</label>
+                            <input id="oldPass" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Mật khẩu cũ">
+                        </div>
+                        <div>
+                            <label for="confirmOld" class="sr-only">Xác nhận mật khẩu cũ</label>
+                            <input id="confirmOld" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Xác nhận mật khẩu cũ">
+                        </div>
+                        <div>
+                            <label for="newPass" class="sr-only">Mật khẩu mới</label>
+                            <input id="newPass" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Mật khẩu mới">
+                        </div>
+                        <button onclick="changePassword()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                            Cập nhật mật khẩu
+                        </button>
+                    </div>
+                </div>
 
-		<h3>Control Lock</h3>
-		<button onclick="toggleLock()">🔄 Toggle Lock</button>
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold text-gray-200 mb-4">Điều khiển khóa</h3>
+                    <div class="space-y-4">
+                        <button onclick="toggleLock()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                            🔄 Mở/Đóng khóa
+                        </button>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-gray-200">Xác thực hai yếu tố (2FA)</span>
+                            <label class="relative inline-flex items-center cursor-not-allowed">
+                                <input type="checkbox" id="twoFA" class="sr-only peer" disabled>
+                                <div class="w-11 h-6 bg-gray-600 rounded-full opacity-50"></div>
+                                <div class="absolute w-4 h-4 bg-gray-200 rounded-full top-1 left-1"></div>
+                            </label>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-gray-200">Mở khóa bằng FaceID</span>
+                            <label class="relative inline-flex items-center cursor-not-allowed">
+                                <input type="checkbox" id="faceID" class="sr-only peer" disabled>
+                                <div class="w-11 h-6 bg-gray-600 rounded-full opacity-50"></div>
+                                <div class="absolute w-4 h-4 bg-gray-200 rounded-full top-1 left-1"></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-		<h3>History</h3>
-		<ul id="historyList"></ul>
-	</div>
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-bold text-gray-200 mb-4">Lịch sử</h3>
+                <ul id="historyList" class="text-gray-400 space-y-2"></ul>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-gray-900 text-gray-400 py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p>© 2025 MyLock. All rights reserved.</p>
+        </div>
+    </footer>
+    <script>
+        // Common logout function for all pages
+        function logout() {
+            firebase.auth().signOut()
+                .then(() => {
+                    alert('Logged out successfully!');
+                    window.location.href = 'signin.html';
+                })
+                .catch((error) => {
+                    alert('Error: ' + error.message);
+                });
+        }
+    </script>
 </body>
 </html>
