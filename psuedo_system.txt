@@ -1,0 +1,32 @@
+Psuedo code for SDLS System
+
+Componnents:
+1. IOT Device
+2. Server (Backend + Source)
+3. Firebase/MQTT
+
+
+Happy case:
+- LCD displays:
+1st row: "UNLOCK OPTION"
+2nd row: "1PIN 2WEB 3FACE"
+
+- 1PIN:
++ (1ST TIME): 
+S1: Setup password, ENTER: -> user use keypad -> Press * to enter password -> LCD "Setup successfully" -> 
+S2: LCD "Enter your password" -> User input 
+S3: Check pass (if wrong then LCD "Re enter password, 2 attempts left") -> if right, servo turn 180, lcd "Welcome, door locks after 10s"
+
++ (not 1st time): S2, S3 of above
+
+- 2WEB:
++ LCD "Waiting for user log in..." > WEB: User sign-in (sign-up if there is no aacount), switch to mylock.html page > WEB: User enter password, click submit" > lcd "Welcome, door locks after 10s"
+
+- 3FACE:
++ LCD "ENTER USER ID" > LCD "STAND BEFORE CAM" > ESP32-CAM display image on WEB > LCD "VERIFICATION..." > LCD "Welcome, door locks after 10s"
++ (If 1st-time): LCD "REGISTER ON WEB" > WEB: User upload image (by cam if on phone, by select image from folder, or connect with phone) > LCD "STAND BEFORE CAM" > ....
+
+AI MODEL:
+- FACE DETECTION -> Random image -> Face-only image (MxN) -> Return image to server
+- FACE RECOGNITION -> Server take face-only image > Compare with image in database that match with USERID 
+
