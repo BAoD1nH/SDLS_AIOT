@@ -3,16 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings</title>
+    <title>Settings - MyLock</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
     <script type="module">
         import { auth, db, storage } from './js/firebase.js';
-        window.firebase = { auth, firestore: () => db, storage: () => storage }; // Make available to global scripts
+        console.log('firebase.js imported successfully');
+
+        try {
+            console.log('Loading firebase.js module');
+            if (!firebase.apps.length) {
+                throw new Error('Firebase app not initialized in firebase.js');
+            }
+            window.firebase = { 
+                auth: () => auth,
+                firestore: () => db,
+                storage: () => storage
+            };
+            console.log('Firebase initialized successfully');
+            window.dispatchEvent(new Event('firebaseInitialized'));
+        } catch (error) {
+            console.error('Firebase module initialization failed:', error);
+            const errorDiv = document.getElementById('avatar-error');
+            if (errorDiv) {
+                errorDiv.textContent = 'Lỗi khởi tạo Firebase: ' + error.message;
+                errorDiv.classList.remove('hidden');
+            }
+        }
     </script>
-    <script src="js/auth.js"></script>
+    <script defer src="js/auth.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
@@ -127,270 +148,117 @@
     </footer>
 
     <script>
-        function showMessage(div, message, isSuccess) {
-            div.textContent = message;
-            div.classList.remove('hidden', isSuccess ? 'text-red-400' : 'text-green-400');
-            div.classList.add(isSuccess ? 'text-green-400' : 'text-red-400');
-            setTimeout(() => div.classList.add('hidden'), 5000);
-        }
+        // Wait for Firebase initialization
+        window.addEventListener('firebaseInitialized', () => {
+            if (!window.firebase || !window.firebase.auth) {
+                const errorDiv = document.getElementById('avatar-error');
+                if (errorDiv) {
+                    errorDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
+                    errorDiv.classList.remove('hidden');
+                }
+                console.error('Firebase initialization failed');
+                return;
+            }
 
-        function logout() {
-            firebase.auth().signOut()
-                .then(() => {
-                    alert('Đã đăng xuất thành công!');
-                    localStorage.removeItem('isLoggedIn');
-                    localStorage.removeItem('userEmail');
-                    window.location.href = 'signin.html';
-                })
-                .catch((error) => {
-                    alert('Lỗi: ' + error.message);
-                });
-        }
+            window.firebase.auth().onAuthStateChanged((user) => {
+                try {
+                    const signupLink = document.getElementById('signup-link');
+                    const signinLink = document.getElementById('signin-link');
+                    const accountMenu = document.getElementById('account-menu');
+                    const accountImage = document.getElementById('account-image');
+                    const dropdownMenu = document.getElementById('dropdown-menu');
 
-        firebase.auth().onAuthStateChanged((user) => {
-            try {
-                const signupLink = document.getElementById('signup-link');
-                const signinLink = document.getElementById('signin-link');
-                const accountMenu = document.getElementById('account-menu');
-                const accountImage = document.getElementById('account-image');
-                const dropdownMenu = document.getElementById('dropdown-menu');
+                    if (user && user.emailVerified) {
+                        signupLink.classList.add('hidden');
+                        signinLink.classList.add('hidden');
+                        accountMenu.classList.remove('hidden');
 
-                if (user && user.emailVerified) {
-                    signupLink.classList.add('hidden');
-                    signinLink.classList.add('hidden');
-                    accountMenu.classList.remove('hidden');
+                        window.firebase.firestore().collection('users').doc(user.uid).get()
+                            .then((doc) => {
+                                if (doc.exists) {
+                                    if (doc.data().avatarUrl) {
+                                        accountImage.src = doc.data().avatarUrl;
+                                        document.getElementById('avatar-preview').src = doc.data().avatarUrl;
+                                    }
+                                    if (doc.data().phoneNumber) {
+                                        document.getElementById('phone-number').value = doc.data().phoneNumber;
+                                    }
+                                    if (doc.data().username) {
+                                        document.getElementById('username').value = doc.data().username;
+                                    }
+                                    if (doc.data().email) {
+                                        document.getElementById('new-email').value = doc.data().email;
+                                    }
+                                }
+                            })
+                            .catch((error) => {
+                                console.error('Error loading user data:', error);
+                            });
 
-                    firebase.firestore().collection('users').doc(user.uid).get()
-                        .then((doc) => {
-                            if (doc.exists) {
-                                if (doc.data().avatarUrl) {
-                                    accountImage.src = doc.data().avatarUrl;
-                                    document.getElementById('avatar-preview').src = doc.data().avatarUrl;
-                                }
-                                if (doc.data().phoneNumber) {
-                                    document.getElementById('phone-number').value = doc.data().phoneNumber;
-                                }
-                                if (doc.data().username) {
-                                    document.getElementById('username').value = doc.data().username;
-                                }
-                                if (doc.data().email) {
-                                    document.getElementById('new-email').value = doc.data().email;
-                                }
-                            }
-                        })
-                        .catch((error) => {
-                            console.error('Error loading user data:', error);
+                        const newAccountMenu = accountMenu.cloneNode(true);
+                        accountMenu.parentNode.replaceChild(newAccountMenu, accountMenu);
+                        const newDropdownMenu = newAccountMenu.querySelector('#dropdown-menu');
+
+                        let hideTimeout = null;
+
+                        const showDropdown = () => {
+                            clearTimeout(hideTimeout);
+                            newDropdownMenu.classList.remove('hidden');
+                        };
+
+                        const hideDropdown = () => {
+                            hideTimeout = setTimeout(() => {
+                                newDropdownMenu.classList.add('hidden');
+                            }, 200);
+                        };
+
+                        newAccountMenu.addEventListener('mouseenter', showDropdown);
+                        newAccountMenu.addEventListener('mouseleave', hideDropdown);
+                        newDropdownMenu.addEventListener('mouseenter', showDropdown);
+                        newDropdownMenu.addEventListener('mouseleave', hideDropdown);
+
+                        newAccountMenu.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            clearTimeout(hideTimeout);
+                            newDropdownMenu.classList.toggle('hidden');
                         });
 
-                    const newAccountMenu = accountMenu.cloneNode(true);
-                    accountMenu.parentNode.replaceChild(newAccountMenu, accountMenu);
-                    const newDropdownMenu = newAccountMenu.querySelector('#dropdown-menu');
-
-                    let hideTimeout = null;
-
-                    const showDropdown = () => {
-                        clearTimeout(hideTimeout);
-                        newDropdownMenu.classList.remove('hidden');
-                    };
-
-                    const hideDropdown = () => {
-                        hideTimeout = setTimeout(() => {
-                            newDropdownMenu.classList.add('hidden');
-                        }, 200);
-                    };
-
-                    newAccountMenu.addEventListener('mouseenter', showDropdown);
-                    newAccountMenu.addEventListener('mouseleave', hideDropdown);
-                    newDropdownMenu.addEventListener('mouseenter', showDropdown);
-                    newDropdownMenu.addEventListener('mouseleave', hideDropdown);
-
-                    newAccountMenu.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        clearTimeout(hideTimeout);
-                        newDropdownMenu.classList.toggle('hidden');
-                    });
-
-                    document.addEventListener('click', (e) => {
-                        if (!newAccountMenu.contains(e.target)) {
-                            clearTimeout(hideTimeout);
-                            newDropdownMenu.classList.add('hidden');
-                        }
-                    });
-                } else if (user && !user.emailVerified) {
-                    window.location.href = 'verify.html';
-                } else {
-                    window.location.href = 'signin.html';
+                        document.addEventListener('click', (e) => {
+                            if (!newAccountMenu.contains(e.target)) {
+                                clearTimeout(hideTimeout);
+                                newDropdownMenu.classList.add('hidden');
+                            }
+                        });
+                    } else if (user && !user.emailVerified) {
+                        window.location.href = 'verify.html';
+                    } else {
+                        window.location.href = 'signin.html';
+                    }
+                } catch (error) {
+                    console.error('Auth state error:', error);
+                    const errorDiv = document.getElementById('avatar-error');
+                    if (errorDiv) {
+                        errorDiv.textContent = 'Lỗi xác thực: ' + error.message;
+                        errorDiv.classList.remove('hidden');
+                    }
                 }
-            } catch (error) {
-                console.error('Auth state error:', error);
-                alert('Lỗi xác thực: ' + error.message);
-            }
+            });
         });
 
-        function uploadAvatar() {
-            const user = firebase.auth().currentUser;
-            const fileInput = document.getElementById('avatar-input');
-            const errorDiv = document.getElementById('avatar-error');
-
-            if (!user) {
-                showMessage(errorDiv, 'Vui lòng đăng nhập để tải ảnh lên.', false);
-                return;
-            }
-
-            const file = fileInput.files[0];
-            if (!file) {
-                showMessage(errorDiv, 'Vui lòng chọn một ảnh.', false);
-                return;
-            }
-
-            const storageRef = firebase.storage().ref(`avatars/${user.uid}/${file.name}`);
-            storageRef.put(file)
-                .then((snapshot) => snapshot.ref.getDownloadURL())
-                .then((url) => {
-                    return firebase.firestore().collection('users').doc(user.uid).set(
-                        { avatarUrl: url },
-                        { merge: true }
-                    ).then(() => url);
-                })
-                .then((url) => {
-                    document.getElementById('avatar-preview').src = url;
-                    document.getElementById('account-image').src = url;
-                    showMessage(errorDiv, 'Tải ảnh lên thành công!', true);
-                })
-                .catch((error) => {
-                    showMessage(errorDiv, 'Lỗi: ' + error.message, false);
-                });
-        }
-
-        function updatePassword() {
-            const user = firebase.auth().currentUser;
-            const currentPassword = document.getElementById('current-password').value;
-            const newPassword = document.getElementById('new-password').value;
-            const errorDiv = document.getElementById('password-error');
-
-            if (!user) {
-                showMessage(errorDiv, 'Vui lòng đăng nhập để đổi mật khẩu tài khoản.', false);
-                return;
-            }
-
-            if (!currentPassword || !newPassword) {
-                showMessage(errorDiv, 'Vui lòng điền đầy đủ thông tin.', false);
-                return;
-            }
-
-            const credential = firebase.auth.EmailAuthProvider.credential(user.email, currentPassword);
-            user.reauthenticateWithCredential(credential)
-                .then(() => user.updatePassword(newPassword))
-                .then(() => {
-                    return firebase.firestore().collection('users').doc(user.uid).set(
-                        { email: user.email },
-                        { merge: true }
-                    );
-                })
-                .then(() => {
-                    showMessage(errorDiv, 'Đổi mật khẩu tài khoản thành công!', true);
-                    document.getElementById('current-password').value = '';
-                    document.getElementById('new-password').value = '';
-                })
-                .catch((error) => {
-                    showMessage(errorDiv, 'Lỗi: ' + error.message, false);
-                });
-        }
-
-        function updateEmail() {
-            const user = firebase.auth().currentUser;
-            const newEmail = document.getElementById('new-email').value;
-            const errorDiv = document.getElementById('email-error');
-
-            if (!user) {
-                showMessage(errorDiv, 'Vui lòng đăng nhập để cập nhật email.', false);
-                return;
-            }
-
-            if (!newEmail) {
-                showMessage(errorDiv, 'Vui lòng nhập email mới.', false);
-                return;
-            }
-
-            user.updateEmail(newEmail)
-                .then(() => user.sendEmailVerification())
-                .then(() => {
-                    return firebase.firestore().collection('users').doc(user.uid).set(
-                        { email: newEmail },
-                        { merge: true }
-                    );
-                })
-                .then(() => {
-                    showMessage(errorDiv, 'Cập nhật email thành công! Vui lòng kiểm tra email mới để xác minh.', true);
-                    document.getElementById('new-email').value = '';
-                    window.location.href = 'verify.html';
-                })
-                .catch((error) => {
-                    showMessage(errorDiv, 'Lỗi: ' + error.message, false);
-                });
-        }
-
-        function updatePhoneNumber() {
-            const user = firebase.auth().currentUser;
-            const phoneNumber = document.getElementById('phone-number').value;
-            const errorDiv = document.getElementById('phone-error');
-
-            if (!user) {
-                showMessage(errorDiv, 'Vui lòng đăng nhập để cập nhật số điện thoại.', false);
-                return;
-            }
-
-            if (!phoneNumber) {
-                showMessage(errorDiv, 'Vui lòng nhập số điện thoại.', false);
-                return;
-            }
-
-            const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-            if (!phoneRegex.test(phoneNumber)) {
-                showMessage(errorDiv, 'Số điện thoại không hợp lệ.', false);
-                return;
-            }
-
-            firebase.firestore().collection('users').doc(user.uid).set(
-                { phoneNumber: phoneNumber },
-                { merge: true }
-            )
-                .then(() => {
-                    showMessage(errorDiv, 'Cập nhật số điện thoại thành công!', true);
-                    document.getElementById('phone-number').value = phoneNumber;
-                })
-                .catch((error) => {
-                    showMessage(errorDiv, 'Lỗi: ' + error.message, false);
-                });
-        }
-
-        function updateUsername() {
-            const user = firebase.auth().currentUser;
-            const username = document.getElementById('username').value;
-            const errorDiv = document.getElementById('username-error');
-
-            if (!user) {
-                showMessage(errorDiv, 'Vui lòng đăng nhập để cập nhật tên người dùng.', false);
-                return;
-            }
-
-            if (!username) {
-                showMessage(errorDiv, 'Vui lòng nhập tên người dùng.', false);
-                return;
-            }
-
-            firebase.firestore().collection('users').doc(user.uid).set(
-                { username: username },
-                { merge: true }
-            )
-                .then(() => {
-                    showMessage(errorDiv, 'Cập nhật tên người dùng thành công!', true);
-                    document.getElementById('username').value = username;
-                })
-                .catch((error) => {
-                    showMessage(errorDiv, 'Lỗi: ' + error.message, false);
-                });
-        }
+        // Fallback in case firebaseInitialized event is missed
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded');
+            setTimeout(() => {
+                if (!window.firebase || !window.firebase.auth) {
+                    const errorMessageDiv = document.getElementById('avatar-error');
+                    if (errorMessageDiv) {
+                        errorMessageDiv.textContent = 'Lỗi: Firebase khởi tạo thất bại sau thời gian chờ.';
+                        errorMessageDiv.classList.remove('hidden');
+                    }
+                    console.error('Firebase initialization failed after timeout');
+                }
+            }, 5000);
+        });
     </script>
 </body>
 </html>
