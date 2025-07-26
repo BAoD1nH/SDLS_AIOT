@@ -19,21 +19,21 @@ char keys[ROW_NUM][COLUMN_NUM] = {
     {'7', '8', '9', 'C'},
     {'*', '0', '#', 'D'}
 };
-byte pin_rows[ROW_NUM] = {42, 41, 40, 39};
-byte pin_column[COLUMN_NUM] = {38, 37, 36, 35};
+byte pin_rows[ROW_NUM] = {4, 5, 12, 13};
+byte pin_column[COLUMN_NUM] = {15, 16, 17, 18};
 Keypad keypad = Keypad(makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_NUM);
 
 // Servo setup
 Servo myServo1;
-const int servoPin = 17;
+const int servoPin = 46;
 
 // LCD setup
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 // Wi-Fi and MQTT setup
-const char* ssid = "NCD tret";
-const char* password = "nguyencongdanh";
-const char* mqttServer = "192.168.1.102";
+const char* ssid = "knaD";
+const char* password = "dangdeptrai";
+const char* mqttServer = "192.168.160.230";
 const int mqttPort = 1883;
 const char* mqttUser = "";
 const char* mqttPassword = "";
@@ -58,25 +58,25 @@ void setup() {
     lcd.print("Enter Password:");
 
     // Connect to Wi-Fi
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
-        Serial.println("Connecting to WiFi...");
-    }
-    Serial.println("Connected to WiFi");
-    Serial.print("ESP32 IP Address: ");
-    Serial.println(WiFi.localIP());
+//     WiFi.begin(ssid, password);
+//     while (WiFi.status() != WL_CONNECTED) {
+//         delay(1000);
+//         Serial.println("Connecting to WiFi...");
+//     }
+//     Serial.println("Connected to WiFi");
+//     Serial.print("ESP32 IP Address: ");
+//     Serial.println(WiFi.localIP());
 
-    // Setup MQTT
-    client.setServer(mqttServer, mqttPort);
-    client.setCallback(callback);
+//     // Setup MQTT
+//     client.setServer(mqttServer, mqttPort);
+//     client.setCallback(callback);
 }
 
 void loop() {
-    if (!client.connected()) {
-        reconnectMQTT();
-    }
-    client.loop();
+    // if (!client.connected()) {
+    //     reconnectMQTT();
+    // }
+    // client.loop();
 
     // Check keypad input
     char key = keypad.getKey();
