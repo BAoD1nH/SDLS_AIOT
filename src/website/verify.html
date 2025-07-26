@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xác Minh Email</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script type="module">
+        import { auth, db } from './js/firebase.js';
+        // Ensure Firebase app is initialized
+        if (!firebase.apps.length) {
+            throw new Error('Firebase app not initialized in firebase.js');
+        }
+        window.firebase = { 
+            auth: () => auth, // Wrap in function to match Compat SDK
+            firestore: () => db 
+        };
+        // Dispatch custom event to signal Firebase initialization
+        window.dispatchEvent(new Event('firebaseInitialized'));
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
+    <nav class="bg-gray-800 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <img src="assets/logo.png" onerror="this.src='https://via.placeholder.com/32'" alt="MyLock Logo" class="h-8 w-8 mr-2">
+                    <a href="index.html" class="text-xl font-bold text-gray-300">MyLock</a>
+                </div>
+                <div id="nav-links" class="flex items-center space-x-4">
+                    <a href="index.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Home</a>
+                    <a id="dashboard-link" href="mylock.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Dashboard</a>
+                    <a id="signup-link" href="signup.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Sign Up</a>
+                    <a id="signin-link" href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Sign In</a>
+                    <div id="account-menu" class="relative hidden">
+                        <img id="account-image" src="https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png" alt="Account" class="h-10 w-10 rounded-full cursor-pointer">
+                        <div id="dropdown-menu" class="absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-50 hidden">
+                            <a href="setting.html" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Settings</a>
+                            <button onclick="logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Log Out</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex-grow flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-md w-full space-y-8 bg-gray-800 p-8 rounded-xl shadow-lg text-center">
+            <h2 class="text-3xl font-extrabold text-gray-200">Xác minh email của bạn</h2>
+            <p class="mt-2 text-sm text-gray-400">
+                Vui lòng kiểm tra hộp thư đến (hoặc thư rác) để tìm email xác minh. Nhấp vào liên kết trong email để kích hoạt tài khoản của bạn.
+            </p>
+            <div class="space-y-4">
+                <button onclick="resendVerificationEmail()" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300">
+                    Gửi lại email xác minh
+                </button>
+                <button onclick="checkVerificationStatus()" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300">
+                    Kiểm tra trạng thái xác minh
+                </button>
+            </div>
+            <p id="verify-error" class="mt-2 text-sm text-red-400 hidden"></p>
+        </div>
+    </div>
+
+    <footer class="bg-gray-900 py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p class="text-gray-400">© 2025 MyLock. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Function to check Firebase initialization
+        function initializeFirebase(callback) {
+            if (window.firebase && window.firebase.auth) {
+                callback();
+            } else {
+                const errorDiv = document.getElementById('verify-error');
+                errorDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
+                errorDiv.classList.remove('hidden');
+                console.error('Firebase initialization failed');
+            }
+        }
+
+        // Wait for Firebase initialization before running logic
+        window.addEventListener('firebaseInitialized', () => {
+            initializeFirebase(() => {
+                function showMessage(div, message, isSuccess) {
+                    div.textContent = message;
+                    div.classList.remove('hidden', isSuccess ? 'text-red-400' : 'text-green-400');
+                    div.classList.add(isSuccess ? 'text-green-400' : 'text-red-400');
+                    setTimeout(() => div.classList.add('hidden'), 5000);
+                }
+
+                function logout() {
+                    window.firebase.auth().signOut()
+                        .then(() => {
+                            alert('Đã đăng xuất thành công!');
+                            localStorage.removeItem('isLoggedIn');
+                            localStorage.removeItem('userEmail');
+                            window.location.href = 'signin.html';
+                        })
+                        .catch((error) => {
+                            alert('Lỗi: ' + error.message);
+                        });
+                }
+
+                function resendVerificationEmail() {
+                    const user = window.firebase.auth().currentUser;
+                    const errorDiv = document.getElementById('verify-error');
+
+                    if (user) {
+                        user.sendEmailVerification()
+                            .then(() => {
+                                showMessage(errorDiv, 'Email xác minh đã được gửi lại!', true);
+                            })
+                            .catch((error) => {
+                                showMessage(errorDiv, 'Lỗi: ' + error.message, false);
+                            });
+                    } else {
+                        showMessage(errorDiv, 'Không tìm thấy người dùng. Vui lòng đăng nhập lại.', false);
+                        window.location.href = 'signin.html';
+                    }
+                }
+
+                function checkVerificationStatus() {
+                    const user = window.firebase.auth().currentUser;
+                    const errorDiv = document.getElementById('verify-error');
+
+                    if (user) {
+                        user.reload().then(() => {
+                            if (user.emailVerified) {
+                                showMessage(errorDiv, 'Email đã được xác minh! Đang chuyển hướng...', true);
+                                localStorage.setItem('isLoggedIn', 'true');
+                                localStorage.setItem('userEmail', user.email);
+                                setTimeout(() => {
+                                    window.location.href = 'mylock.html';
+                                }, 2000);
+                            } else {
+                                showMessage(errorDiv, 'Email chưa được xác minh. Vui lòng kiểm tra email của bạn.', false);
+                            }
+                        }).catch((error) => {
+                            showMessage(errorDiv, 'Lỗi: ' + error.message, false);
+                        });
+                    } else {
+                        showMessage(errorDiv, 'Không tìm thấy người dùng. Vui lòng đăng nhập lại.', false);
+                        window.location.href = 'signin.html';
+                    }
+                }
+
+                window.firebase.auth().onAuthStateChanged((user) => {
+                    try {
+                        const dashboardLink = document.getElementById('dashboard-link');
+                        const signupLink = document.getElementById('signup-link');
+                        const signinLink = document.getElementById('signin-link');
+                        const accountMenu = document.getElementById('account-menu');
+                        const accountImage = document.getElementById('account-image');
+                        const dropdownMenu = document.getElementById('dropdown-menu');
+
+                        if (user) {
+                            if (user.emailVerified) {
+                                localStorage.setItem('isLoggedIn', 'true');
+                                localStorage.setItem('userEmail', user.email);
+                                window.location.href = 'mylock.html';
+                            } else {
+                                dashboardLink.classList.add('hidden');
+                                signupLink.classList.add('hidden');
+                                signinLink.classList.add('hidden');
+                                accountMenu.classList.remove('hidden');
+
+                                window.firebase.firestore().collection('users').doc(user.uid).get()
+                                    .then((doc) => {
+                                        if (doc.exists && doc.data().avatarUrl) {
+                                            accountImage.src = doc.data().avatarUrl;
+                                        }
+                                    })
+                                    .catch((error) => {
+                                        console.error('Error loading avatar:', error);
+                                    });
+
+                                const newAccountMenu = accountMenu.cloneNode(true);
+                                accountMenu.parentNode.replaceChild(newAccountMenu, accountMenu);
+                                const newDropdownMenu = newAccountMenu.querySelector('#dropdown-menu');
+
+                                let hideTimeout = null;
+
+                                const showDropdown = () => {
+                                    clearTimeout(hideTimeout);
+                                    newDropdownMenu.classList.remove('hidden');
+                                };
+
+                                const hideDropdown = () => {
+                                    hideTimeout = setTimeout(() => {
+                                        newDropdownMenu.classList.add('hidden');
+                                    }, 200);
+                                };
+
+                                newAccountMenu.addEventListener('mouseenter', showDropdown);
+                                newAccountMenu.addEventListener('mouseleave', hideDropdown);
+                                newDropdownMenu.addEventListener('mouseenter', showDropdown);
+                                newDropdownMenu.addEventListener('mouseleave', hideDropdown);
+
+                                newAccountMenu.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    clearTimeout(hideTimeout);
+                                    newDropdownMenu.classList.toggle('hidden');
+                                });
+
+                                document.addEventListener('click', (e) => {
+                                    if (!newAccountMenu.contains(e.target)) {
+                                        clearTimeout(hideTimeout);
+                                        newDropdownMenu.classList.add('hidden');
+                                    }
+                                });
+
+                                const checkVerification = setInterval(() => {
+                                    user.reload().then(() => {
+                                        if (window.firebase.auth().currentUser.emailVerified) {
+                                            clearInterval(checkVerification);
+                                            localStorage.setItem('isLoggedIn', 'true');
+                                            localStorage.setItem('userEmail', user.email);
+                                            window.location.href = 'mylock.html';
+                                        }
+                                    }).catch((error) => {
+                                        showMessage(document.getElementById('verify-error'), 'Lỗi: ' + error.message, false);
+                                    });
+                                }, 5000);
+                            }
+                        } else {
+                            window.location.href = 'signin.html';
+                        }
+                    } catch (error) {
+                        console.error('Auth state error:', error);
+                        showMessage(document.getElementById('verify-error'), 'Lỗi xác thực: ' + error.message, false);
+                    }
+                });
+            });
+        });
+
+        // Fallback in case firebaseInitialized event is missed
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!window.firebase || !window.firebase.auth) {
+                initializeFirebase(() => {});
+            }
+        });
+    </script>
+</body>
+</html>

@@ -32,13 +32,32 @@ window.onload = () => {
 
 
 function toggleLock() {
-	if (mqttClient && mqttClient.connected) {
-		mqttClient.publish("door/control", "toggle");
-		alert("🔄 Đã gửi lệnh mở/đóng cửa.");
-	} else {
-		alert("❌ Không thể kết nối đến MQTT. Vui lòng kiểm tra kết nối.");
-	}
+    if (mqttClient && mqttClient.connected) {
+        mqttClient.publish("door/control", "toggle");
+        alert("🔄 Đã gửi lệnh mở/đóng cửa.");
+    } else {
+        alert("❌ Không thể kết nối đến MQTT. Vui lòng kiểm tra kết nối.");
+    }
 }
+
+window.onload = () => {
+    connectMQTT();
+    const interval = setInterval(() => {
+        if (mqttClient && mqttClient.connected) {
+            mqttClient.on("message", (topic, message) => {
+                const msg = message.toString();
+                if (topic === "door/status") {
+                    console.log("📥 Trạng thái cửa từ ESP32:", msg);
+                    const el = document.getElementById("door-status");
+                    if (el) el.textContent = msg;
+                }
+            });
+            clearInterval(interval);
+        } else {
+            console.error('MQTT client not initialized or not connected');
+        }
+    }, 500);
+};
 
 function changePassword() {
     const oldPass = document.getElementById("oldPass").value;
