@@ -1,5 +1,6 @@
 let mqttClient; // Biến toàn cục
 let isDoorOpen = false;
+let is2FAEnabled = false;  // Cờ lưu trạng thái 2FA trên web
 
 function connectMQTT() {
 	mqttClient = mqtt.connect("ws://localhost:9001");
