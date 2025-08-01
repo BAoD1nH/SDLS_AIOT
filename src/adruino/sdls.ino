@@ -1,0 +1,560 @@
+//----------------------------------------------------  LIBRARIES ----------------------------------------------------//
+#include <ESP32Servo.h>
+#include <Keypad.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+//----------------------------------------------------  FLAGS ----------------------------------------------------//
+bool enablePinFlow = false;
+bool enableWebFlow = false;
+bool enableFaceFlow = false;
+
+bool firstTime = true;       // Cờ cho lần đầu thiết lập mật khẩu
+
+//----------------------------------------------------  WIFI - MQTT CONFIG ----------------------------------------------------//
+const char* ssid = "Wokwi-GUEST";
+const char* password = "";
+const char* mqttServer = "test.mosquitto.org";
+const int mqttPort = 1883;
+const char* mqttUser = "";
+const char* mqttPassword = "";
+const char* clientId = "AbtqLqY5Rcc43dBatoYJHflsAUg1";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+//----------------------------------------------------  KEYPAD CONFIG ----------------------------------------------------//
+#define ROW_NUM 4
+#define COLUMN_NUM 4
+char keys[ROW_NUM][COLUMN_NUM] = {
+    {'1', '2', '3', 'A'},
+    {'4', '5', '6', 'B'},
+    {'7', '8', '9', 'C'},
+    {'*', '0', '#', 'D'}
+};
+byte pin_rows[ROW_NUM] = {4, 5, 6, 7};
+byte pin_column[COLUMN_NUM] = {10, 11, 12, 13};
+Keypad keypad = Keypad(makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_NUM);
+
+//----------------------------------------------------  SERVO CONFIG ----------------------------------------------------//
+Servo myServo1;
+const int servoPin = 18;
+
+//----------------------------------------------------  BUZZER CONFIG ----------------------------------------------------//
+const int buzzerPin = 35;
+
+//----------------------------------------------------  LCD CONFIG ----------------------------------------------------//
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+// const int sda = 20;
+// const int scl 21;
+
+//----------------------------------------------------  VARIABLES ----------------------------------------------------//
+String inputString = "";
+String currentLockPassword = "1234";
+bool is2FAOn = false;
+bool auto_lock_var = false;
+
+int failedAttempts = 0;
+const int maxFailedAttempts = 3;
+unsigned long lastUnlockTime = 0;
+
+///----------------------------------------------------  PROTOTYPES ----------------------------------------------------///
+
+//---------------------------------------------------- WIFI & MQTT ----------------------------------------------------//
+void connectToWiFi();
+void reconnectMQTT();
+void callback(char* topic, byte* payload, unsigned int length);
+
+//---------------------------------------------------- DOOR CONTROL ----------------------------------------------------//
+void controlServo(bool lock);   // Điều khiển servo mở/khóa
+void lockDoor();                // Khóa cửa
+void unlockDoor();              // Mở cửa
+void autoLockOn();              // Tự động khóa sau 10s nếu bật auto_lock_var
+void selectUnlockMode();        // Set hình thức mở cửa
+//---------------------------------------------------- PIN FLOW ----------------------------------------------------//
+void setupPassword();           // Thiết lập mật khẩu lần đầu
+bool checkPassword();           // Kiểm tra mật khẩu
+void resetFailedAttempts();     // Reset số lần nhập sai
+
+//---------------------------------------------------- OTP (2FA) ----------------------------------------------------//
+String generateOTP();           // Tạo mã OTP ngẫu nhiên
+String sendOTPToWebsite();      // Gửi OTP tới website qua MQTT
+bool check2FASecurity();        // Kiểm tra OTP nhập vào từ keypad
+
+//---------------------------------------------------- FACEID FLOW ----------------------------------------------------//
+void startFaceRecognition();    // Bắt đầu quá trình nhận diện khuôn mặt
+void registerFace();            // Đăng ký khuôn mặt mới
+void verifyFace();              // Xác minh khuôn mặt và mở khóa
+
+//---------------------------------------------------- WEB FLOW ----------------------------------------------------//
+void waitForWebLogin();         // LCD hiển thị trạng thái chờ user đăng nhập web
+void verifyWebPassword();       // Xác minh mật khẩu từ web qua MQTT
+
+//---------------------------------------------------- LCD DISPLAY ----------------------------------------------------//
+void lcdShowUnlockOptions();               // Hiển thị menu chính: 1PIN 2WEB 3FACE
+void lcdShowMessage(String line1, String line2);  // Hiển thị 2 dòng tùy ý
+void lcdShowWelcome();                     // Hiển thị "Welcome, door locks after 10s"
+void lcdShowEnterPassword();               // Hiển thị "Enter your password"
+void lcdShowSetupSuccess();                // Hiển thị "Setup successfully"
+void lcdShowWrongPassword(int remaining);  // Hiển thị số lần nhập sai còn lại
+void lcdShowLocking();
+void lcdShowLockSuccess();
+//---------------------------------------------------- MQTT & WARNING ----------------------------------------------------//
+void publishWarning();          // Gửi cảnh báo qua MQTT
+void publishOpen();             // Gửi trạng thái mở cửa
+void publishBlock();            // Gửi trạng thái khóa cửa
+void triggerAlarm();            // Phát còi cảnh báo
+
+//---------------------------------------------------- FLOW HANDLER ----------------------------------------------------//
+void handlePinFlow();           // Quản lý toàn bộ flow 1PIN
+void handleWebFlow();           // Quản lý toàn bộ flow 2WEB
+void handleFaceFlow();          // Quản lý toàn bộ flow 3FACE
+
+
+//----------------------------------------------------  SETUP ----------------------------------------------------//
+
+
+//----------------------------------------------------  SETUP ----------------------------------------------------//
+void setup() {
+	Serial.begin(115200);
+
+	// Khởi tạo LCD I2C với SDA = 20, SCL = 21
+	Wire.begin(20, 21);
+	lcd.init();
+	lcd.backlight();
+
+	// Khởi tạo Servo
+	myServo1.attach(servoPin);
+	myServo1.write(0); // Mặc định khóa cửa
+
+	// Buzzer
+	pinMode(buzzerPin, OUTPUT);
+	digitalWrite(buzzerPin, LOW);
+
+	// Hiển thị chào mừng
+	lcdShowMessage("Welcome", "Smart Door Lock");
+	delay(1500);
+
+	// Nếu là lần đầu tiên thì setup mật khẩu
+	if (firstTime) {
+		setupPassword();    
+		firstTime = false;
+	}
+
+	// (Tạm thời không kết nối WiFi & MQTT)
+	// connectToWiFi();
+	// client.setServer(mqttServer, mqttPort);
+	// client.setCallback(callback);
+}
+
+//----------------------------------------------------  LOOP ----------------------------------------------------//
+void loop() {
+	// Xử lý các flow
+	if (enablePinFlow) handlePinFlow();
+	if (enableWebFlow) handleWebFlow();
+	if (enableFaceFlow) handleFaceFlow();
+
+	// ✅ Nếu đủ điều kiện auto-lock → gọi luôn
+	if (auto_lock_var && (millis() - lastUnlockTime >= 10000)) {
+		autoLockOn();  // Hàm này tự delay 2s rồi mới kết thúc
+	}
+
+	// ✅ Sau khi auto lock hoặc không còn flow nào đang chạy
+	if (!enablePinFlow && !enableWebFlow && !enableFaceFlow && !auto_lock_var) {
+		selectUnlockMode();  // Quay về menu chính
+	}
+}
+
+
+
+
+//---------------------------------------------------- WIFI & MQTT ----------------------------------------------------//
+void connectToWiFi() {
+	Serial.print("Connecting to WiFi: ");
+	Serial.println(ssid);
+	WiFi.begin(ssid, password);
+
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("Connecting WiFi");
+
+	// Chờ kết nối WiFi
+	int dot = 0;
+	while (WiFi.status() != WL_CONNECTED) {
+		delay(500);
+		Serial.print(".");
+		lcd.setCursor(dot % 16, 1);
+		lcd.print(".");
+		dot++;
+	}
+
+	// Kết nối thành công
+	Serial.println();
+	Serial.println("Connected to WiFi!");
+	Serial.print("IP: ");
+	Serial.println(WiFi.localIP());
+
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("WiFi Connected!");
+	lcd.setCursor(0, 1);
+	lcd.print(WiFi.localIP().toString());
+	delay(2000);
+	lcdShowUnlockOptions(); // Quay lại menu chính
+}
+
+void reconnectMQTT() {
+	// Duy trì kết nối MQTT
+	while (!client.connected()) {
+		Serial.print("Attempting MQTT connection...");
+		lcd.clear();
+		lcd.setCursor(0, 0);
+		lcd.print("Connecting MQTT");
+
+		// Thử kết nối với clientId
+		if (client.connect(clientId, mqttUser, mqttPassword)) {
+			Serial.println("connected");
+			lcd.setCursor(0, 1);
+			lcd.print("MQTT Connected");
+			delay(1000);
+
+			// Subscribe topic cần thiết
+			client.subscribe(clientId);
+			client.subscribe("door/control");
+			client.subscribe("door/password");
+			client.subscribe("door/password_check");
+		} else {
+			Serial.print("failed, rc=");
+			Serial.print(client.state());
+			Serial.println(" retry in 5 sec");
+			lcd.setCursor(0, 1);
+			lcd.print("MQTT Retry...");
+			delay(5000);
+		}
+	}
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+	Serial.print("Message arrived [");
+	Serial.print(topic);
+	Serial.print("] ");
+	for (int i = 0; i < length; i++) {
+		Serial.print((char)payload[i]);
+	}
+	Serial.println();
+}
+
+//---------------------------------------------------- DOOR CONTROL ----------------------------------------------------//
+void controlServo(bool lock) {
+  if (lock) {
+        myServo1.write(0);   // Góc khóa
+    } else {
+        myServo1.write(90);  // Góc mở
+    }
+}
+
+void lockDoor() {
+  controlServo(true);
+  lcdShowLockSuccess();
+}
+
+void unlockDoor() {
+  controlServo(false);
+  lcdShowMessage("Door Opened", "");
+  lastUnlockTime = millis();
+  auto_lock_var = true;  // Bật auto lock sau khi mở cửa
+}
+
+void autoLockOn() {
+	
+  lcdShowLocking();     // Hiển thị "Locking door..."
+  lockDoor();           // Khóa cửa + hiển thị "Door Locked"
+  publishBlock();       // Gửi trạng thái
+  Serial.println("[AUTO LOCK] Door has been automatically locked.");
+  auto_lock_var = false;
+  delay(2000);
+}
+
+
+
+
+//---------------------------------------------------- PIN FLOW ----------------------------------------------------//
+void setupPassword() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Set New Password");
+  inputString = "";
+
+  Serial.println("[SETUP] Please input new password and press * to confirm.");
+
+  while (true) {
+    char key = keypad.getKey();
+    if (key) {
+      if (key == '*') {  // Xác nhận
+        if (inputString.length() > 0) {
+          currentLockPassword = inputString;
+          lcdShowSetupSuccess();   // "Setup successfully"
+          Serial.print("[SETUP] New password set: ");
+          Serial.println(currentLockPassword);
+          delay(2000);
+          break;
+        } else {
+          lcdShowMessage("Password Empty", "Try Again");
+          inputString = "";
+          delay(2000);
+          lcd.clear();
+          lcd.print("Set New Password");
+        }
+      } else if (key == '#') {  // Xóa nhập
+        inputString = "";
+        lcdShowMessage("Clear", "");
+        delay(500);
+        lcd.clear();
+        lcd.print("Set New Password");
+      } else {
+        inputString += key;
+        lcdShowMessage("New Password:", inputString);
+      }
+    }
+  }
+}
+
+bool checkPassword() {
+	if (inputString == currentLockPassword) {
+		failedAttempts = 0;
+		lcdShowWelcome();
+		unlockDoor();
+		publishOpen();
+		delay(2000);
+		inputString = "";
+		return true;  // <-- Đúng mật khẩu
+	} else {
+		failedAttempts++;
+		int remaining = maxFailedAttempts - failedAttempts;
+		if (remaining > 0) {
+			lcdShowWrongPassword(remaining);
+		} else {
+			lcdShowMessage("Locked Out!", "");
+			publishWarning();
+			triggerAlarm();
+			failedAttempts = 0;
+		}
+		delay(2000);
+		inputString = "";
+		return false;  // <-- Sai mật khẩu
+	}
+}
+
+
+void resetFailedAttempts() {
+  failedAttempts = 0;
+}
+
+//---------------------------------------------------- OTP (2FA) ----------------------------------------------------//
+String generateOTP() {
+  String otp = "";
+  for (int i = 0; i < 6; i++) {  // Tạo OTP 6 chữ số
+    otp += String(random(0, 10));  // random() sinh số từ 0 đến 9
+  }
+  Serial.print("[OTP] Generated OTP: ");
+  Serial.println(otp);
+  return otp;
+}
+
+String sendOTPToWebsite() {
+  String otp = generateOTP();  // Gọi hàm tạo OTP
+
+  if (client.connected()) {
+    String message = "OTP: " + otp;
+    client.publish(clientId, message.c_str()); // Gửi OTP qua MQTT
+    Serial.print("[OTP] Published to topic: ");
+    Serial.println(clientId);
+    Serial.print("[OTP] Message: ");
+    Serial.println(message);
+  } else {
+    Serial.println("[OTP] MQTT client not connected. Unable to publish OTP.");
+  }
+  return otp;
+}
+
+bool check2FASecurity() {
+    String generatedOTP = sendOTPToWebsite();  // Gửi OTP qua server
+    String userInputOTP = "";                  // Chuỗi người dùng nhập
+    unsigned long startTime = millis();        // Bắt đầu đếm thời gian
+
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Enter OTP:");
+
+    while (millis() - startTime < 30000) {  // Timeout 30 giây
+      char key = keypad.getKey();
+
+      if (key) {
+        if (key == '*') {  // Người dùng xác nhận OTP
+          if (userInputOTP == generatedOTP) {
+            Serial.println("[2FA] OTP correct!");
+            return true;
+          } else {
+            Serial.println("[2FA] OTP incorrect!");
+            return false;
+          }
+        } else if (key == '#') {  // Xóa nhập
+          userInputOTP = "";
+          lcdShowMessage("OTP Cleared", "");
+          delay(500);
+          lcd.clear();
+          lcd.print("Enter OTP:");
+        } else {  // Nhập số
+          userInputOTP += key;
+          lcdShowMessage("OTP:", userInputOTP);
+        }
+      }
+    }
+
+  Serial.println("[2FA] Timeout waiting for OTP.");
+  return false;
+}
+
+
+//---------------------------------------------------- FACEID FLOW ----------------------------------------------------//
+void startFaceRecognition() {}
+void registerFace() {}
+void verifyFace() {}
+
+//---------------------------------------------------- WEB FLOW ----------------------------------------------------//
+void waitForWebLogin() {}
+void verifyWebPassword() {}
+
+//---------------------------------------------------- LCD DISPLAY ----------------------------------------------------//
+
+void lcdShowMessage(String line1, String line2) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(line1);
+  lcd.setCursor(0, 1);
+  lcd.print(line2);
+
+}
+//---------------------------------------------------- LCD DISPLAY ----------------------------------------------------//
+
+void lcdShowUnlockOptions() {
+	lcdShowMessage("UNLOCK OPTION", "1PIN 2WEB 3FACE");
+}
+
+void lcdShowWelcome() {
+	lcdShowMessage("Welcome!", "Door locks in 10s");
+	delay(2000);  // Cho người dùng đọc
+}
+
+void lcdShowEnterPassword() {
+	lcdShowMessage("Enter Password:", "");
+}
+
+void lcdShowSetupSuccess() {
+	lcdShowMessage("Setup successfully", "");
+	Serial.println("[LCD] Setup successfully");
+	delay(1000);
+}
+
+void lcdShowWrongPassword(int remaining) {
+	String line2 = "Attempts: " + String(remaining);
+	lcdShowMessage("Wrong Password!", line2);
+}
+
+void lcdShowLocking() {
+	lcdShowMessage("Locking door...", "Please wait");
+	Serial.println("[LCD] Locking door...");
+	delay(1000);
+}
+
+void lcdShowLockSuccess() {
+	lcdShowMessage("Door Locked!", "Secure Mode ON");
+	Serial.println("[LCD] Door successfully locked.");
+	delay(2000);
+}
+
+//---------------------------------------------------- MQTT & WARNING ----------------------------------------------------//
+void publishWarning() {
+  if (client.connected()) client.publish(clientId, "warning");
+}
+
+void publishOpen() {
+  if (client.connected()) client.publish(clientId, "open");
+}
+void publishBlock() {
+  if (client.connected()) client.publish(clientId, "block");
+}
+
+void triggerAlarm() {
+  for (int i = 0; i < 5; i++) {
+    digitalWrite(buzzerPin, HIGH);
+    delay(300);
+    digitalWrite(buzzerPin, LOW);
+    delay(300);
+  }
+}
+
+void selectUnlockMode() {
+	lcdShowUnlockOptions();
+	char key = 0;
+
+	while (true) {
+		key = keypad.getKey();
+		if (key == '1') {
+			enablePinFlow = true;
+			break;
+		} else if (key == '2') {
+			enableWebFlow = true;
+			break;
+		} else if (key == '3') {
+			enableFaceFlow = true;
+			break;
+		}
+	}
+}
+
+//---------------------------------------------------- FLOW HANDLER ----------------------------------------------------//
+void handlePinFlow() {
+	static bool initialized = false;
+
+	if (!initialized) {
+		lcdShowEnterPassword();  // Hiển thị lần đầu
+		inputString = "";
+		initialized = true;
+	}
+
+	char key = keypad.getKey();
+	if (key) {
+		if (key == '*') {
+			bool success = checkPassword();  // Gọi và lưu kết quả
+
+			if (success) {
+				// Đúng pass → mở cửa → kết thúc flow, chờ auto lock
+				initialized = false;
+				enablePinFlow = false;
+			} else {
+				// Sai → reset để cho nhập lại
+				inputString = "";
+				lcdShowEnterPassword();
+			}
+		} else if (key == '#') {
+			inputString = "";
+			lcdShowEnterPassword();
+		} else {
+			inputString += key;
+			lcdShowMessage("Input:", inputString);
+		}
+	}
+}
+
+
+
+
+void handleWebFlow() {}
+void handleFaceFlow() {}
+
+//---------------------------------------------------- WEB FLOW ----------------------------------------------------//
+// void waitForWebLogin() {}
+// void verifyWebPassword() {}
