@@ -18,6 +18,9 @@ bool auto_lock_var = false;
 bool enableWiFiMQTT = true;  // <-- Bật khi test Web Flow hoặc các chức năng dùng MQTT
 bool isDoorOpen = false;  // Khởi tạo trạng thái ban đầu là đóng
 
+bool enable2FA = false;
+String otpFromWeb = "";
+bool otpReceived = false;
 //----------------------------------------------------  VARIABLES ----------------------------------------------------//
 String inputString = "";
 String currentLockPassword = "1234";
@@ -81,8 +84,8 @@ bool checkPassword();           // Kiểm tra mật khẩu
 void resetFailedAttempts();     // Reset số lần nhập sai
 
 //---------------------------------------------------- OTP (2FA) ----------------------------------------------------//
-String generateOTP();           // Tạo mã OTP ngẫu nhiên
-String sendOTPToWebsite();      // Gửi OTP tới website qua MQTT
+// String generateOTP();           // Tạo mã OTP ngẫu nhiên
+// String sendOTPToWebsite();      // Gửi OTP tới website qua MQTT
 bool check2FASecurity();        // Kiểm tra OTP nhập vào từ keypad
 
 //---------------------------------------------------- FACEID FLOW ----------------------------------------------------//
@@ -242,7 +245,9 @@ void reconnectMQTT() {
 			client.subscribe(clientId);
 			client.subscribe("door/control");
 			client.subscribe("door/password");
-			client.subscribe("door/password_check");
+			// client.subscribe("door/password_check");
+			client.subscribe("door/otp");    // ✅ Nhận OTP từ web
+			client.subscribe("door/2fa");    // ✅ Nhận tín hiệu bật/tắt 2FA
 		} else {
 			Serial.print("failed, rc=");
 			Serial.print(client.state());
@@ -272,9 +277,16 @@ void callback(char* topic, byte* payload, unsigned int length) {
 		if (msg == "open") {
 			Serial.println("[WEB] Mở cửa từ website!");
 			webUnlockRequested = true;
-			lcdShowMessage("Web Request", "Door Opening...");
-			unlockDoor();
-			publishOpen();
+
+			// Khi 2FA bật → yêu cầu nhập OTP sau đó mới unlockDoor ở nơi khác
+			if (!enable2FA) {
+				lcdShowMessage("Web Request", "Door Opening...");
+				unlockDoor();
+				publishOpen();
+			} else {
+				lcdShowMessage("2FA Enabled", "Waiting OTP...");
+				// Sẽ xử lý phần nhập OTP ở handleWebFlow() hoặc unlockDoor()
+			}
 		} else if (msg == "lock") {
 			Serial.println("[WEB] Khoá cửa từ website!");
 			lcdShowMessage("Web Request", "Locking...");
@@ -282,6 +294,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 			publishBlock();
 		}
 	}
+	// ----------- Nhận mật khẩu mới từ Web ----------- //
 	else if (topicStr == "door/password") {
 		String newPass = msg;
 
@@ -293,6 +306,28 @@ void callback(char* topic, byte* payload, unsigned int length) {
 		} else {
 			Serial.println("[WEB] Mật khẩu mới không hợp lệ.");
 			lcdShowMessage("Pass Update Failed", "Invalid Format");
+		}
+	}
+	
+	// ----------- Nhận OTP từ Web để dùng trong 2FA ----------- //
+	else if (topicStr == "door/otp") {
+		otpFromWeb = msg;
+		otpReceived = true;
+		Serial.print("[2FA] Nhận OTP từ Web: ");
+		Serial.println(otpFromWeb);
+		lcdShowMessage("OTP Received", "Check Now");
+	}
+
+	// ----------- Bật/Tắt tính năng 2FA từ Web ----------- //
+	else if (topicStr == "door/2fa") {
+		if (msg == "on") {
+			enable2FA = true;
+			Serial.println("[2FA] Đã bật xác thực hai bước");
+			lcdShowMessage("2FA Enabled", "");
+		} else if (msg == "off") {
+			enable2FA = false;
+			Serial.println("[2FA] Đã tắt xác thực hai bước");
+			lcdShowMessage("2FA Disabled", "");
 		}
 	}
 }
@@ -318,16 +353,28 @@ void lockDoor() {
 }
 
 void unlockDoor() {
-  controlServo(false);
-  lcdShowMessage("Door Opened", "");
-  lastUnlockTime = millis();
-  auto_lock_var = true;  // Bật auto lock sau khi mở cửa
+	// ✅ Nếu bật 2FA thì kiểm tra OTP trước
+	if (enable2FA) {
+		if (!check2FASecurity()) {
+			Serial.println("[2FA] OTP sai hoặc timeout. Không mở cửa.");
+			lcdShowMessage("2FA Failed", "Access Denied");
+			return;
+		}
+	}
+
+	// ✅ Nếu không dùng 2FA hoặc OTP đúng → mở cửa như bình thường
+	controlServo(false);
+	lcdShowMessage("Door Opened", "");
+	lastUnlockTime = millis();
+	auto_lock_var = true;  // Bật auto lock
 
 	isDoorOpen = true;  // ✅ Cập nhật flag
+
 	if (client.connected()) {
 		client.publish("door/status", "Door opened");
 	}
 }
+
 
 void autoLockOn() {
 	
@@ -415,68 +462,77 @@ void resetFailedAttempts() {
 }
 
 //---------------------------------------------------- OTP (2FA) ----------------------------------------------------//
-String generateOTP() {
-  String otp = "";
-  for (int i = 0; i < 6; i++) {  // Tạo OTP 6 chữ số
-    otp += String(random(0, 10));  // random() sinh số từ 0 đến 9
-  }
-  Serial.print("[OTP] Generated OTP: ");
-  Serial.println(otp);
-  return otp;
-}
+// String generateOTP() {
+//   String otp = "";
+//   for (int i = 0; i < 6; i++) {  // Tạo OTP 6 chữ số
+//     otp += String(random(0, 10));  // random() sinh số từ 0 đến 9
+//   }
+//   Serial.print("[OTP] Generated OTP: ");
+//   Serial.println(otp);
+//   return otp;
+// }
 
-String sendOTPToWebsite() {
-  String otp = generateOTP();  // Gọi hàm tạo OTP
+// String sendOTPToWebsite() {
+//   String otp = generateOTP();  // Gọi hàm tạo OTP
 
-  if (client.connected()) {
-    String message = "OTP: " + otp;
-    client.publish(clientId, message.c_str()); // Gửi OTP qua MQTT
-    Serial.print("[OTP] Published to topic: ");
-    Serial.println(clientId);
-    Serial.print("[OTP] Message: ");
-    Serial.println(message);
-  } else {
-    Serial.println("[OTP] MQTT client not connected. Unable to publish OTP.");
-  }
-  return otp;
-}
+//   if (client.connected()) {
+//     String message = "OTP: " + otp;
+//     client.publish(clientId, message.c_str()); // Gửi OTP qua MQTT
+//     Serial.print("[OTP] Published to topic: ");
+//     Serial.println(clientId);
+//     Serial.print("[OTP] Message: ");
+//     Serial.println(message);
+//   } else {
+//     Serial.println("[OTP] MQTT client not connected. Unable to publish OTP.");
+//   }
+//   return otp;
+// }
 
 bool check2FASecurity() {
-    String generatedOTP = sendOTPToWebsite();  // Gửi OTP qua server
-    String userInputOTP = "";                  // Chuỗi người dùng nhập
-    unsigned long startTime = millis();        // Bắt đầu đếm thời gian
+	if (!otpReceived) {
+		Serial.println("[2FA] Chưa nhận được OTP từ web!");
+		lcdShowMessage("Waiting for OTP", "From Website...");
+		delay(2000);
+		return false;
+	}
 
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print("Enter OTP:");
+	String userInputOTP = "";
+	unsigned long startTime = millis();
 
-    while (millis() - startTime < 30000) {  // Timeout 30 giây
-      char key = keypad.getKey();
+	lcd.clear();
+	lcd.setCursor(0, 0);
+	lcd.print("Enter OTP:");
 
-      if (key) {
-        if (key == '*') {  // Người dùng xác nhận OTP
-          if (userInputOTP == generatedOTP) {
-            Serial.println("[2FA] OTP correct!");
-            return true;
-          } else {
-            Serial.println("[2FA] OTP incorrect!");
-            return false;
-          }
-        } else if (key == '#') {  // Xóa nhập
-          userInputOTP = "";
-          lcdShowMessage("OTP Cleared", "");
-          delay(500);
-          lcd.clear();
-          lcd.print("Enter OTP:");
-        } else {  // Nhập số
-          userInputOTP += key;
-          lcdShowMessage("OTP:", userInputOTP);
-        }
-      }
-    }
+	while (millis() - startTime < 30000) {
+		char key = keypad.getKey();
 
-  Serial.println("[2FA] Timeout waiting for OTP.");
-  return false;
+		if (key) {
+			if (key == '*') {
+				if (userInputOTP == otpFromWeb) {
+					Serial.println("[2FA] OTP correct!");
+					otpReceived = false;  // ✅ Reset flag
+					return true;
+				} else {
+					Serial.println("[2FA] OTP incorrect!");
+					otpReceived = false;  // ✅ Reset flag
+					return false;
+				}
+			} else if (key == '#') {
+				userInputOTP = "";
+				lcdShowMessage("OTP Cleared", "");
+				delay(500);
+				lcd.clear();
+				lcd.print("Enter OTP:");
+			} else {
+				userInputOTP += key;
+				lcdShowMessage("OTP:", userInputOTP);
+			}
+		}
+	}
+
+	Serial.println("[2FA] Timeout waiting for OTP.");
+	otpReceived = false;  // ✅ Reset flag dù timeout
+	return false;
 }
 
 
