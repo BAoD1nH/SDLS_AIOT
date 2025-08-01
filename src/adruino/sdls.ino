@@ -10,13 +10,27 @@
 bool enablePinFlow = false;
 bool enableWebFlow = false;
 bool enableFaceFlow = false;
-
+bool webUnlockRequested = false;    // Khi website thật sự gửi yêu cầu mở cửa
 bool firstTime = true;       // Cờ cho lần đầu thiết lập mật khẩu
 
+bool is2FAOn = false;
+bool auto_lock_var = false;
+bool enableWiFiMQTT = true;  // <-- Bật khi test Web Flow hoặc các chức năng dùng MQTT
+bool isDoorOpen = false;  // Khởi tạo trạng thái ban đầu là đóng
+
+//----------------------------------------------------  VARIABLES ----------------------------------------------------//
+String inputString = "";
+String currentLockPassword = "1234";
+String webPassword = "";
+
+int failedAttempts = 0;
+const int maxFailedAttempts = 3;
+unsigned long lastUnlockTime = 0;
+
 //----------------------------------------------------  WIFI - MQTT CONFIG ----------------------------------------------------//
-const char* ssid = "Wokwi-GUEST";
-const char* password = "";
-const char* mqttServer = "test.mosquitto.org";
+const char* ssid = "Gia Bao";
+const char* password = "28092004";
+const char* mqttServer = "192.168.1.7";
 const int mqttPort = 1883;
 const char* mqttUser = "";
 const char* mqttPassword = "";
@@ -47,18 +61,6 @@ const int buzzerPin = 35;
 
 //----------------------------------------------------  LCD CONFIG ----------------------------------------------------//
 LiquidCrystal_I2C lcd(0x27, 16, 2);
-// const int sda = 20;
-// const int scl 21;
-
-//----------------------------------------------------  VARIABLES ----------------------------------------------------//
-String inputString = "";
-String currentLockPassword = "1234";
-bool is2FAOn = false;
-bool auto_lock_var = false;
-
-int failedAttempts = 0;
-const int maxFailedAttempts = 3;
-unsigned long lastUnlockTime = 0;
 
 ///----------------------------------------------------  PROTOTYPES ----------------------------------------------------///
 
@@ -88,10 +90,6 @@ void startFaceRecognition();    // Bắt đầu quá trình nhận diện khuôn
 void registerFace();            // Đăng ký khuôn mặt mới
 void verifyFace();              // Xác minh khuôn mặt và mở khóa
 
-//---------------------------------------------------- WEB FLOW ----------------------------------------------------//
-void waitForWebLogin();         // LCD hiển thị trạng thái chờ user đăng nhập web
-void verifyWebPassword();       // Xác minh mật khẩu từ web qua MQTT
-
 //---------------------------------------------------- LCD DISPLAY ----------------------------------------------------//
 void lcdShowUnlockOptions();               // Hiển thị menu chính: 1PIN 2WEB 3FACE
 void lcdShowMessage(String line1, String line2);  // Hiển thị 2 dòng tùy ý
@@ -111,9 +109,6 @@ void triggerAlarm();            // Phát còi cảnh báo
 void handlePinFlow();           // Quản lý toàn bộ flow 1PIN
 void handleWebFlow();           // Quản lý toàn bộ flow 2WEB
 void handleFaceFlow();          // Quản lý toàn bộ flow 3FACE
-
-
-//----------------------------------------------------  SETUP ----------------------------------------------------//
 
 
 //----------------------------------------------------  SETUP ----------------------------------------------------//
@@ -143,15 +138,40 @@ void setup() {
 		firstTime = false;
 	}
 
-	// (Tạm thời không kết nối WiFi & MQTT)
-	// connectToWiFi();
-	// client.setServer(mqttServer, mqttPort);
-	// client.setCallback(callback);
+	// Kết nối Wi-Fi/MQTT nếu được bật
+	if (enableWiFiMQTT) {
+		connectToWiFi();
+		client.setServer(mqttServer, mqttPort);
+		client.setCallback(callback);
+		reconnectMQTT();
+	}
+
+	if (enableWiFiMQTT) {
+		lcdShowMessage("Wi-Fi/MQTT", "ENABLED");
+	} else {
+		lcdShowMessage("Wi-Fi/MQTT", "DISABLED");
+	}
+	delay(1000);
+
 }
 
 //----------------------------------------------------  LOOP ----------------------------------------------------//
 void loop() {
 	// Xử lý các flow
+	if (enableWiFiMQTT) {
+	// Wi-Fi reconnect nếu cần (có thể bỏ nếu WiFi ổn định)
+		if (WiFi.status() != WL_CONNECTED) {
+			connectToWiFi();
+		}
+
+		// MQTT reconnect nếu mất kết nối
+		if (!client.connected()) {
+			reconnectMQTT();
+		}
+
+		client.loop();  // Quan trọng: cần để nhận callback MQTT
+	}
+
 	if (enablePinFlow) handlePinFlow();
 	if (enableWebFlow) handleWebFlow();
 	if (enableFaceFlow) handleFaceFlow();
@@ -166,8 +186,6 @@ void loop() {
 		selectUnlockMode();  // Quay về menu chính
 	}
 }
-
-
 
 
 //---------------------------------------------------- WIFI & MQTT ----------------------------------------------------//
@@ -237,14 +255,48 @@ void reconnectMQTT() {
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
-	Serial.print("Message arrived [");
-	Serial.print(topic);
-	Serial.print("] ");
+	String topicStr = String(topic);
+	String msg = "";
+
 	for (int i = 0; i < length; i++) {
-		Serial.print((char)payload[i]);
+		msg += (char)payload[i];
 	}
-	Serial.println();
+
+	Serial.print("[MQTT] Received on ");
+	Serial.print(topicStr);
+	Serial.print(": ");
+	Serial.println(msg);
+
+	// ✅ Nếu topic là door/control và lệnh là "open"
+	if (topicStr == "door/control") {
+		if (msg == "open") {
+			Serial.println("[WEB] Mở cửa từ website!");
+			webUnlockRequested = true;
+			lcdShowMessage("Web Request", "Door Opening...");
+			unlockDoor();
+			publishOpen();
+		} else if (msg == "lock") {
+			Serial.println("[WEB] Khoá cửa từ website!");
+			lcdShowMessage("Web Request", "Locking...");
+			lockDoor();
+			publishBlock();
+		}
+	}
+	else if (topicStr == "door/password") {
+		String newPass = msg;
+
+		if (newPass.length() >= 4 && newPass.length() <= 10) { // hoặc điều kiện bạn mong muốn
+			currentLockPassword = newPass;
+			Serial.print("[WEB] Đã cập nhật mật khẩu mới từ website: ");
+			Serial.println(currentLockPassword);
+			lcdShowMessage("Password Updated", "From Website");
+		} else {
+			Serial.println("[WEB] Mật khẩu mới không hợp lệ.");
+			lcdShowMessage("Pass Update Failed", "Invalid Format");
+		}
+	}
 }
+
 
 //---------------------------------------------------- DOOR CONTROL ----------------------------------------------------//
 void controlServo(bool lock) {
@@ -258,6 +310,11 @@ void controlServo(bool lock) {
 void lockDoor() {
   controlServo(true);
   lcdShowLockSuccess();
+
+	isDoorOpen = false;  // ✅ Cập nhật flag
+	if (client.connected()) {
+		client.publish("door/status", "Door locked");
+	}
 }
 
 void unlockDoor() {
@@ -265,6 +322,11 @@ void unlockDoor() {
   lcdShowMessage("Door Opened", "");
   lastUnlockTime = millis();
   auto_lock_var = true;  // Bật auto lock sau khi mở cửa
+
+	isDoorOpen = true;  // ✅ Cập nhật flag
+	if (client.connected()) {
+		client.publish("door/status", "Door opened");
+	}
 }
 
 void autoLockOn() {
@@ -423,9 +485,9 @@ void startFaceRecognition() {}
 void registerFace() {}
 void verifyFace() {}
 
-//---------------------------------------------------- WEB FLOW ----------------------------------------------------//
-void waitForWebLogin() {}
-void verifyWebPassword() {}
+// //---------------------------------------------------- WEB FLOW ----------------------------------------------------//
+// void waitForWebLogin() {}
+// void verifyWebPassword() {}
 
 //---------------------------------------------------- LCD DISPLAY ----------------------------------------------------//
 
@@ -549,12 +611,29 @@ void handlePinFlow() {
 	}
 }
 
+void handleWebFlow() {
+	static bool waitingShown = false;
+
+	// Bước 1: Hiển thị thông báo chờ web gửi lệnh (chỉ 1 lần)
+	if (!waitingShown) {
+		lcdShowMessage("Waiting for Web", "Web open...");
+		waitingShown = true;
+	}
+
+	// Bước 2: Nếu chưa nhận yêu cầu mở cửa từ Web → chờ tiếp
+	if (!webUnlockRequested) return;
+
+	// Bước 3: Thực hiện mở cửa
+	lcdShowWelcome();
+	unlockDoor();
+	publishOpen();
+	Serial.println("[WEB] Đã mở cửa thành công.");
+
+	// Bước 4: Reset trạng thái Web Flow
+	waitingShown = false;
+	webUnlockRequested = false;
+	enableWebFlow = false;
+}
 
 
-
-void handleWebFlow() {}
 void handleFaceFlow() {}
-
-//---------------------------------------------------- WEB FLOW ----------------------------------------------------//
-// void waitForWebLogin() {}
-// void verifyWebPassword() {}
