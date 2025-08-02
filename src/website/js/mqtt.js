@@ -1,4 +1,6 @@
 let mqttClient; // Biến toàn cục
+let isDoorOpen = false;
+let is2FAEnabled = false;  // Cờ lưu trạng thái 2FA trên web
 
 function connectMQTT() {
 	mqttClient = mqtt.connect("ws://localhost:9001");
@@ -15,7 +17,32 @@ function connectMQTT() {
 		});
 	});
 
+	mqttClient.on("message", (topic, message) => {
+		const msg = message.toString();
+
+		if (topic === "door/status") {
+			console.log("📥 ESP32 gửi trạng thái:", msg);
+
+			// Cập nhật hiển thị trên UI
+			const el = document.getElementById("door-status");
+			if (el) el.textContent = msg;
+
+			// Cập nhật flag isDoorOpen theo nội dung nhận được
+			if (msg.toLowerCase().includes("opened")) {
+				isDoorOpen = true;
+				console.log("🚪 Cửa đang MỞ");
+			} else if (msg.toLowerCase().includes("locked") || msg.toLowerCase().includes("closed")) {
+				isDoorOpen = false;
+				console.log("🔒 Cửa đang ĐÓNG");
+			} else {
+				console.warn("⚠️ Trạng thái không xác định:", msg);
+			}
+		}
+	});
+	
 	mqttClient.on("error", (err) => {
 		console.error("❌ Kết nối MQTT thất bại:", err.message);
 	});
 }
+
+
