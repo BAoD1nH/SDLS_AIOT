@@ -154,73 +154,6 @@
                     setTimeout(() => div.classList.add('hidden'), 5000);
                 }
 
-                function logout() {
-                    window.firebase.auth().signOut()
-                        .then(() => {
-                            alert('Đã đăng xuất thành công!');
-                            localStorage.removeItem('isLoggedIn');
-                            localStorage.removeItem('userEmail');
-                            window.location.href = 'signin.html';
-                        })
-                        .catch((error) => {
-                            alert('Lỗi: ' + error.message);
-                        });
-                }
-
-                function changePassword() {
-                    const oldPass = document.getElementById('oldPass').value;
-                    const confirmOld = document.getElementById('confirmOld').value;
-                    const newPass = document.getElementById('newPass').value;
-                    const errorDiv = document.getElementById('password-error');
-                    const user = window.firebase.auth().currentUser;
-
-                    if (!user) {
-                        showMessage(errorDiv, 'Vui lòng đăng nhập để đổi mật khẩu khóa.', false);
-                        return;
-                    }
-
-                    if (!oldPass || !confirmOld || !newPass) {
-                        showMessage(errorDiv, 'Vui lòng điền đầy đủ thông tin.', false);
-                        return;
-                    }
-
-                    if (oldPass !== confirmOld) {
-                        showMessage(errorDiv, 'Mật khẩu cũ và xác nhận mật khẩu không khớp.', false);
-                        return;
-                    }
-
-                    const passwordRegex = /^[0-9]{4,8}$/;
-                    if (!passwordRegex.test(newPass)) {
-                        showMessage(errorDiv, 'Mật khẩu mới phải là 4-8 chữ số.', false);
-                        return;
-                    }
-
-                    window.firebase.firestore().collection('users').doc(user.uid).get()
-                        .then((doc) => {
-                            if (doc.exists && doc.data().lockPassword === oldPass) {
-                                return window.firebase.firestore().collection('users').doc(user.uid).set(
-                                    { lockPassword: newPass },
-                                    { merge: true }
-                                ).then(() => {
-                                    if (mqttClient && mqttClient.connected) {
-                                        mqttClient.publish("door/password", newPass);
-                                        showMessage(errorDiv, 'Cập nhật mật khẩu khóa thành công!', true);
-                                        document.getElementById('oldPass').value = '';
-                                        document.getElementById('confirmOld').value = '';
-                                        document.getElementById('newPass').value = '';
-                                    } else {
-                                        showMessage(errorDiv, 'Không thể kết nối đến MQTT. Vui lòng kiểm tra kết nối.', false);
-                                    }
-                                });
-                            } else {
-                                showMessage(errorDiv, 'Mật khẩu cũ không đúng.', false);
-                            }
-                        })
-                        .catch((error) => {
-                            showMessage(errorDiv, 'Lỗi: ' + error.message, false);
-                        });
-                }
-
                 window.firebase.auth().onAuthStateChanged((user) => {
                     try {
                         const signupLink = document.getElementById('signup-link');
@@ -237,7 +170,10 @@
                             signinLink.classList.add('hidden');
                             accountMenu.classList.remove('hidden');
                             welcome.textContent = `Chào mừng, ${user.email}!`;
+                            localStorage.setItem('isLoggedIn', 'true');
+                            localStorage.setItem('userEmail', user.email);
 
+                            // Load user avatar from Firestore
                             window.firebase.firestore().collection('users').doc(user.uid).get()
                                 .then((doc) => {
                                     if (doc.exists && doc.data().avatarUrl) {
@@ -248,6 +184,7 @@
                                     console.error('Error loading avatar:', error);
                                 });
 
+                            // Set up dropdown menu
                             const newAccountMenu = accountMenu.cloneNode(true);
                             accountMenu.parentNode.replaceChild(newAccountMenu, accountMenu);
                             const newDropdownMenu = newAccountMenu.querySelector('#dropdown-menu');
@@ -283,7 +220,7 @@
                                 }
                             });
 
-                            // Initialize MQTT
+                            // Initialize MQTT and set up message listener
                             console.log('Initializing MQTT connection');
                             connectMQTT();
                             const interval = setInterval(() => {
@@ -309,6 +246,9 @@
                             }, 500);
                         } else if (user && !user.emailVerified) {
                             console.log('User not verified, redirecting to verify.html');
+                            window.firebase.auth().signOut();
+                            localStorage.removeItem('isLoggedIn');
+                            localStorage.removeItem('userEmail');
                             window.location.href = 'verify.html';
                         } else {
                             console.log('No user, redirecting to signin.html');

@@ -1,4 +1,3 @@
-// Utility function to show success/error messages
 function showMessage(div, message, isSuccess) {
     div.textContent = message;
     div.classList.remove('hidden', isSuccess ? 'text-red-400' : 'text-green-400');
@@ -6,14 +5,15 @@ function showMessage(div, message, isSuccess) {
     setTimeout(() => div.classList.add('hidden'), 5000);
 }
 
-// Sign up with email and password
 function signUp() {
+    console.log('signUp function called');
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
     const confirmPassword = document.getElementById('confirm-password').value;
     const errorMessageDiv = document.getElementById('error-message');
 
     if (!errorMessageDiv) {
+        console.error('UI error: error-message div not found');
         alert('Lỗi giao diện: Không tìm thấy div thông báo lỗi.');
         return;
     }
@@ -22,50 +22,36 @@ function signUp() {
     errorMessageDiv.textContent = '';
 
     if (!email || !password || !confirmPassword) {
-        errorMessageDiv.textContent = 'Vui lòng điền đầy đủ thông tin.';
-        errorMessageDiv.classList.remove('hidden');
+        showMessage(errorMessageDiv, 'Vui lòng điền đầy đủ thông tin.', false);
         return;
     }
 
     if (password !== confirmPassword) {
-        errorMessageDiv.textContent = 'Mật khẩu và xác nhận mật khẩu không khớp.';
-        errorMessageDiv.classList.remove('hidden');
+        showMessage(errorMessageDiv, 'Mật khẩu và xác nhận mật khẩu không khớp.', false);
         return;
     }
 
     if (!window.firebase || !window.firebase.auth) {
-        errorMessageDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
-        errorMessageDiv.classList.remove('hidden');
+        console.error('Firebase not initialized in signUp');
+        showMessage(errorMessageDiv, 'Lỗi: Firebase chưa được khởi tạo.', false);
         return;
     }
 
     window.firebase.auth().createUserWithEmailAndPassword(email, password)
         .then((userCredential) => {
             const user = userCredential.user;
-            console.log('User created:', user.email); // Debug log
+            console.log('User created:', user.email);
             return user.sendEmailVerification();
-            }).then(() => {
-                console.log('User data saved to Firestore'); // Debug log
-                return window.firebase.firestore().collection('users').doc(user.uid).set({
-                    email: user.email,
-                    username: email.split('@')[0],
-                    phoneNumber: '',
-                    lockPassword: '',
-                    avatarUrl: 'https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png'
-            });
         })
         .then(() => {
-            console.log('Verification email sent'); // Debug log
-            errorMessageDiv.textContent = 'Đăng ký thành công! Đang chuyển hướng để xác minh email...';
-            errorMessageDiv.classList.remove('hidden');
-            errorMessageDiv.classList.remove('text-red-400');
-            errorMessageDiv.classList.add('text-green-400');
+            console.log('Verification email sent');
+            showMessage(errorMessageDiv, 'Đăng ký thành công! Email xác minh đã được gửi. Đang chuyển hướng...', true);
             setTimeout(() => {
                 window.location.href = 'verify.html';
             }, 2000);
         })
         .catch((error) => {
-            console.error('Sign-up error:', error); // Debug log
+            console.error('Sign-up error:', error.code, error.message);
             let errorMessage = 'Lỗi khi đăng ký: ';
             switch (error.code) {
                 case 'auth/email-already-in-use':
@@ -80,18 +66,17 @@ function signUp() {
                 default:
                     errorMessage += error.message;
             }
-            errorMessageDiv.textContent = errorMessage;
-            errorMessageDiv.classList.remove('hidden');
+            showMessage(errorMessageDiv, errorMessage, false);
         });
 }
 
-// Sign in with email and password
 function signIn() {
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
     const errorMessageDiv = document.getElementById('error-message');
 
     if (!errorMessageDiv) {
+        console.error('UI error: error-message div not found');
         alert('Lỗi giao diện: Không tìm thấy div thông báo lỗi.');
         return;
     }
@@ -100,14 +85,13 @@ function signIn() {
     errorMessageDiv.textContent = '';
 
     if (!email || !password) {
-        errorMessageDiv.textContent = 'Vui lòng điền đầy đủ thông tin.';
-        errorMessageDiv.classList.remove('hidden');
+        showMessage(errorMessageDiv, 'Vui lòng điền đầy đủ thông tin.', false);
         return;
     }
 
     if (!window.firebase || !window.firebase.auth) {
-        errorMessageDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
-        errorMessageDiv.classList.remove('hidden');
+        console.error('Firebase not initialized in signIn');
+        showMessage(errorMessageDiv, 'Lỗi: Firebase chưa được khởi tạo.', false);
         return;
     }
 
@@ -120,42 +104,42 @@ function signIn() {
                 window.location.href = 'mylock.html';
             } else {
                 window.firebase.auth().signOut();
-                errorMessageDiv.textContent = 'Vui lòng xác minh email của bạn trước khi đăng nhập.';
-                errorMessageDiv.classList.remove('hidden');
+                showMessage(errorMessageDiv, 'Vui lòng xác minh email của bạn trước khi đăng nhập.', false);
             }
         })
         .catch((error) => {
-            errorMessageDiv.textContent = 'Lỗi đăng nhập: ' + error.message;
-            errorMessageDiv.classList.remove('hidden');
+            console.error('Sign-in error:', error.code, error.message);
+            showMessage(errorMessageDiv, 'Lỗi đăng nhập: ' + error.message, false);
         });
 }
 
-// Log out the current user
 function logout() {
     if (!window.firebase || !window.firebase.auth) {
+        console.error('Firebase not initialized in logout');
         alert('Lỗi: Firebase chưa được khởi tạo.');
         return;
     }
 
     window.firebase.auth().signOut()
         .then(() => {
+            console.log('User signed out');
             alert('Đã đăng xuất thành công!');
             localStorage.removeItem('isLoggedIn');
             localStorage.removeItem('userEmail');
             window.location.href = 'signin.html';
         })
         .catch((error) => {
+            console.error('Logout error:', error.code, error.message);
             alert('Lỗi: ' + error.message);
         });
 }
 
-// Upload user avatar
 function uploadAvatar() {
     if (!window.firebase || !window.firebase.auth) {
+        console.error('Firebase not initialized in uploadAvatar');
         const errorDiv = document.getElementById('avatar-error');
         if (errorDiv) {
-            errorDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
-            errorDiv.classList.remove('hidden');
+            showMessage(errorDiv, 'Lỗi: Firebase chưa được khởi tạo.', false);
         }
         return;
     }
@@ -190,17 +174,17 @@ function uploadAvatar() {
             showMessage(errorDiv, 'Tải ảnh lên thành công!', true);
         })
         .catch((error) => {
+            console.error('Avatar upload error:', error.code, error.message);
             showMessage(errorDiv, 'Lỗi: ' + error.message, false);
         });
 }
 
-// Update user password
 function updatePassword() {
     if (!window.firebase || !window.firebase.auth) {
+        console.error('Firebase not initialized in updatePassword');
         const errorDiv = document.getElementById('password-error');
         if (errorDiv) {
-            errorDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
-            errorDiv.classList.remove('hidden');
+            showMessage(errorDiv, 'Lỗi: Firebase chưa được khởi tạo.', false);
         }
         return;
     }
@@ -235,17 +219,17 @@ function updatePassword() {
             document.getElementById('new-password').value = '';
         })
         .catch((error) => {
+            console.error('Password update error:', error.code, error.message);
             showMessage(errorDiv, 'Lỗi: ' + error.message, false);
         });
 }
 
-// Update user email
 async function updateEmail() {
     if (!window.firebase || !window.firebase.auth) {
+        console.error('Firebase not initialized in updateEmail');
         const errorDiv = document.getElementById('email-error');
         if (errorDiv) {
-            errorDiv.textContent = 'Error: Firebase not initialized.';
-            errorDiv.classList.remove('hidden');
+            showMessage(errorDiv, 'Lỗi: Firebase chưa được khởi tạo.', false);
         }
         return;
     }
@@ -275,17 +259,17 @@ async function updateEmail() {
         document.getElementById('new-email').value = '';
         window.location.href = 'verify.html';
     } catch (error) {
+        console.error('Email update error:', error.code, error.message);
         showMessage(errorDiv, 'Lỗi: ' + error.message, false);
     }
 }
 
-// Update user phone number
 function updatePhoneNumber() {
     if (!window.firebase || !window.firebase.auth) {
+        console.error('Firebase not initialized in updatePhoneNumber');
         const errorDiv = document.getElementById('phone-error');
         if (errorDiv) {
-            errorDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
-            errorDiv.classList.remove('hidden');
+            showMessage(errorDiv, 'Lỗi: Firebase chưa được khởi tạo.', false);
         }
         return;
     }
@@ -319,17 +303,17 @@ function updatePhoneNumber() {
             document.getElementById('phone-number').value = phoneNumber;
         })
         .catch((error) => {
+            console.error('Phone number update error:', error.code, error.message);
             showMessage(errorDiv, 'Lỗi: ' + error.message, false);
         });
 }
 
-// Update user username
 function updateUsername() {
     if (!window.firebase || !window.firebase.auth) {
+        console.error('Firebase not initialized in updateUsername');
         const errorDiv = document.getElementById('username-error');
         if (errorDiv) {
-            errorDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
-            errorDiv.classList.remove('hidden');
+            showMessage(errorDiv, 'Lỗi: Firebase chưa được khởi tạo.', false);
         }
         return;
     }
@@ -357,11 +341,11 @@ function updateUsername() {
             document.getElementById('username').value = username;
         })
         .catch((error) => {
+            console.error('Username update error:', error.code, error.message);
             showMessage(errorDiv, 'Lỗi: ' + error.message, false);
         });
 }
 
-// Export functions for global access
 window.signUp = signUp;
 window.signIn = signIn;
 window.logout = logout;

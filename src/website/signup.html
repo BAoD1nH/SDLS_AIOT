@@ -32,6 +32,7 @@
             if (errorDiv) {
                 errorDiv.textContent = 'Lỗi khởi tạo Firebase: ' + error.message;
                 errorDiv.classList.remove('hidden');
+                errorDiv.classList.add('text-red-400');
             }
         }
     </script>
@@ -54,7 +55,7 @@
                         <img id="account-image" src="https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png" alt="Account" class="h-10 w-10 rounded-full cursor-pointer">
                         <div id="dropdown-menu" class="absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-50 hidden">
                             <a href="setting.html" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Settings</a>
-                            <button onclick="logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Log Out</button>
+                            <button onclick="window.logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Log Out</button>
                         </div>
                     </div>
                 </div>
@@ -87,7 +88,7 @@
                 </div>
 
                 <div>
-                    <button onclick="signUp()" disabled class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button id="signup-btn" onclick="console.log('Sign Up button clicked'); window.signUp()" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
                         Sign Up
                     </button>
                 </div>
@@ -97,61 +98,20 @@
     </div>
 
     <script>
-        // Function to enable signup button
-        function enableSignupButton() {
-            const signupButton = document.querySelector('button[onclick="signUp()"]');
-            if (signupButton) {
-                signupButton.disabled = false;
-                console.log('Signup button enabled');
-            }
-        }
-
-        // Function to handle initialization failure
-        function handleInitializationFailure(message) {
-            const errorDiv = document.getElementById('error-message');
-            if (errorDiv) {
-                errorDiv.textContent = message;
-                errorDiv.classList.remove('hidden');
-            }
-            console.error(message);
-        }
-
-        // Wait for Firebase initialization
-        document.addEventListener('firebaseInitialized', () => {
-            if (window.firebase && window.firebase.auth) {
-                enableSignupButton();
-            } else {
-                handleInitializationFailure('Lỗi: Firebase chưa được khởi tạo.');
-            }
-        });
-
-        // Fallback in case firebaseInitialized event is missed
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('DOMContentLoaded fired');
-            setTimeout(() => {
-                if (window.firebase && window.firebase.auth) {
-                    enableSignupButton();
-                } else {
-                    handleInitializationFailure('Lỗi: Firebase khởi tạo thất bại sau thời gian chờ.');
-                }
-            }, 5000);
-        });
-
-        function logout() {
-            window.firebase.auth().signOut()
-                .then(() => {
-                    alert('Đã đăng xuất thành công!');
-                    localStorage.removeItem('isLoggedIn');
-                    localStorage.removeItem('userEmail');
-                    window.location.href = 'signin.html';
-                })
-                .catch((error) => {
-                    alert('Lỗi: ' + error.message);
-                });
-        }
-
-        // Handle authentication state
+        // Wait for Firebase initialization and update UI
         window.addEventListener('firebaseInitialized', () => {
+            console.log('firebaseInitialized event received');
+            if (!window.firebase || !window.firebase.auth) {
+                const errorDiv = document.getElementById('error-message');
+                if (errorDiv) {
+                    errorDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.classList.add('text-red-400');
+                }
+                console.error('Firebase not initialized after firebaseInitialized event');
+                return;
+            }
+
             window.firebase.auth().onAuthStateChanged((user) => {
                 try {
                     const signupLink = document.getElementById('signup-link');
@@ -220,9 +180,30 @@
                     }
                 } catch (error) {
                     console.error('Auth state error:', error);
-                    alert('Lỗi xác thực: ' + error.message);
+                    const errorDiv = document.getElementById('error-message');
+                    if (errorDiv) {
+                        errorDiv.textContent = 'Lỗi xác thực: ' + error.message;
+                        errorDiv.classList.remove('hidden');
+                        errorDiv.classList.add('text-red-400');
+                    }
                 }
             });
+        });
+
+        // Fallback for initialization failure
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded fired');
+            setTimeout(() => {
+                if (!window.firebase || !window.firebase.auth) {
+                    const errorDiv = document.getElementById('error-message');
+                    if (errorDiv) {
+                        errorDiv.textContent = 'Lỗi: Firebase khởi tạo thất bại sau thời gian chờ.';
+                        errorDiv.classList.remove('hidden');
+                        errorDiv.classList.add('text-red-400');
+                    }
+                    console.error('Firebase initialization timed out');
+                }
+            }, 5000);
         });
     </script>
 </body>
