@@ -94,7 +94,8 @@
                     setTimeout(() => div.classList.add('hidden'), 5000);
                 }
 
-                function logout() {
+                // Expose functions to global scope
+                window.logout = function() {
                     window.firebase.auth().signOut()
                         .then(() => {
                             alert('Đã đăng xuất thành công!');
@@ -105,9 +106,9 @@
                         .catch((error) => {
                             alert('Lỗi: ' + error.message);
                         });
-                }
+                };
 
-                function resendVerificationEmail() {
+                window.resendVerificationEmail = function() {
                     const user = window.firebase.auth().currentUser;
                     const errorDiv = document.getElementById('verify-error');
 
@@ -123,9 +124,9 @@
                         showMessage(errorDiv, 'Không tìm thấy người dùng. Vui lòng đăng nhập lại.', false);
                         window.location.href = 'signin.html';
                     }
-                }
+                };
 
-                function checkVerificationStatus() {
+                window.checkVerificationStatus = function() {
                     const user = window.firebase.auth().currentUser;
                     const errorDiv = document.getElementById('verify-error');
 
@@ -148,7 +149,7 @@
                         showMessage(errorDiv, 'Không tìm thấy người dùng. Vui lòng đăng nhập lại.', false);
                         window.location.href = 'signin.html';
                     }
-                }
+                };
 
                 window.firebase.auth().onAuthStateChanged((user) => {
                     try {
