@@ -6,11 +6,35 @@
     <title>MyLock Dashboard</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-    <script src="js/firebase.js"></script>
-    <script src="js/mqtt.js"></script>
-    <script src="js/noti.js"></script>
-    <script src="js/mylock.js"></script>
+    <script type="module">
+        // Import at top level
+        import { auth, db, storage } from './js/firebase.js';
+        console.log('firebase.js imported successfully');
+        try {
+            console.log('Loading firebase.js module');
+            if (!firebase.apps.length) {
+                throw new Error('Firebase app not initialized in firebase.js');
+            }
+            window.firebase = { 
+                auth: () => auth, // Wrap in function to match Compat SDK
+                firestore: () => db 
+            };
+            console.log('Firebase initialized successfully');
+            window.dispatchEvent(new Event('firebaseInitialized'));
+        } catch (error) {
+            console.error('Firebase module initialization failed:', error);
+            const welcome = document.getElementById('welcome');
+            if (welcome) {
+                welcome.textContent = 'Lỗi khởi tạo Firebase: ' + error.message;
+                welcome.classList.add('text-red-400');
+            }
+        }
+    </script>
+    <script defer src="js/mqtt.js"></script>
+    <script defer src="js/noti.js"></script>
+    <script defer src="js/mylock.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
@@ -18,15 +42,20 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
-                    <img src="assets/logo.png" alt="MyLock Logo" class="h-8 w-8 mr-2">
-                    <a href="index.html" class="text-xl font-bold text-gray-300">MyLock</a>
+                    <img src="assets/logo.png" onerror="this.src='https://via.placeholder.com/32'" alt="MyLock Logo" class="h-8 w-8 mr-2">
+                    <a href="mylock.html" class="text-xl font-bold text-gray-300">MyLock</a>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <a href="index.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Home</a>
+                <div id="nav-links" class="flex items-center space-x-4">
                     <a href="mylock.html" class="bg-gray-600 text-gray-200 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-500">Dashboard</a>
-                    <a href="signup.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign Up</a>
-                    <a href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign In</a>
-                    <button onclick="logout()" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Đăng xuất</button>
+                    <a id="signup-link" href="signup.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Sign Up</a>
+                    <a id="signin-link" href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Sign In</a>
+                    <div id="account-menu" class="relative hidden">
+                        <img id="account-image" src="https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png" alt="Account" class="h-10 w-10 rounded-full cursor-pointer">
+                        <div id="dropdown-menu" class="absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-50 hidden">
+                            <a href="setting.html" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Settings</a>
+                            <button onclick="logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Log Out</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -42,7 +71,7 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
-                    <h3 class="text-xl font-bold text-gray-200 mb-4">Đổi Mật Khẩu</h3>
+                    <h3 class="text-xl font-bold text-gray-200 mb-4">Đổi Mật Khẩu Khóa</h3>
                     <div class="space-y-4">
                         <div>
                             <label for="oldPass" class="sr-only">Mật khẩu cũ</label>
@@ -57,8 +86,9 @@
                             <input id="newPass" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Mật khẩu mới">
                         </div>
                         <button onclick="changePassword()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-                            Cập nhật mật khẩu
+                            Cập nhật mật khẩu khóa
                         </button>
+                        <p id="password-error" class="mt-2 text-sm text-red-400 hidden"></p>
                     </div>
                 </div>
 
@@ -100,18 +130,205 @@
             <p>© 2025 MyLock. All rights reserved.</p>
         </div>
     </footer>
+
     <script>
-        // Common logout function for all pages
-        function logout() {
-            firebase.auth().signOut()
-                .then(() => {
-                    alert('Logged out successfully!');
-                    window.location.href = 'signin.html';
-                })
-                .catch((error) => {
-                    alert('Error: ' + error.message);
-                });
+        // Function to initialize Firebase-dependent logic
+        function initializeFirebaseAuth(callback) {
+            if (window.firebase && window.firebase.auth) {
+                callback();
+            } else {
+                const welcome = document.getElementById('welcome');
+                welcome.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
+                welcome.classList.add('text-red-400');
+                console.error('Firebase initialization failed');
+            }
         }
+
+        // Wait for Firebase initialization
+        window.addEventListener('firebaseInitialized', () => {
+            initializeFirebaseAuth(() => {
+                function showMessage(div, message, isSuccess) {
+                    div.textContent = message;
+                    div.classList.remove('hidden', isSuccess ? 'text-red-400' : 'text-green-400');
+                    div.classList.add(isSuccess ? 'text-green-400' : 'text-red-400');
+                    setTimeout(() => div.classList.add('hidden'), 5000);
+                }
+
+                function logout() {
+                    window.firebase.auth().signOut()
+                        .then(() => {
+                            alert('Đã đăng xuất thành công!');
+                            localStorage.removeItem('isLoggedIn');
+                            localStorage.removeItem('userEmail');
+                            window.location.href = 'signin.html';
+                        })
+                        .catch((error) => {
+                            alert('Lỗi: ' + error.message);
+                        });
+                }
+
+                function changePassword() {
+                    const oldPass = document.getElementById('oldPass').value;
+                    const confirmOld = document.getElementById('confirmOld').value;
+                    const newPass = document.getElementById('newPass').value;
+                    const errorDiv = document.getElementById('password-error');
+                    const user = window.firebase.auth().currentUser;
+
+                    if (!user) {
+                        showMessage(errorDiv, 'Vui lòng đăng nhập để đổi mật khẩu khóa.', false);
+                        return;
+                    }
+
+                    if (!oldPass || !confirmOld || !newPass) {
+                        showMessage(errorDiv, 'Vui lòng điền đầy đủ thông tin.', false);
+                        return;
+                    }
+
+                    if (oldPass !== confirmOld) {
+                        showMessage(errorDiv, 'Mật khẩu cũ và xác nhận mật khẩu không khớp.', false);
+                        return;
+                    }
+
+                    const passwordRegex = /^[0-9]{4,8}$/;
+                    if (!passwordRegex.test(newPass)) {
+                        showMessage(errorDiv, 'Mật khẩu mới phải là 4-8 chữ số.', false);
+                        return;
+                    }
+
+                    window.firebase.firestore().collection('users').doc(user.uid).get()
+                        .then((doc) => {
+                            if (doc.exists && doc.data().lockPassword === oldPass) {
+                                return window.firebase.firestore().collection('users').doc(user.uid).set(
+                                    { lockPassword: newPass },
+                                    { merge: true }
+                                ).then(() => {
+                                    if (mqttClient && mqttClient.connected) {
+                                        mqttClient.publish("door/password", newPass);
+                                        showMessage(errorDiv, 'Cập nhật mật khẩu khóa thành công!', true);
+                                        document.getElementById('oldPass').value = '';
+                                        document.getElementById('confirmOld').value = '';
+                                        document.getElementById('newPass').value = '';
+                                    } else {
+                                        showMessage(errorDiv, 'Không thể kết nối đến MQTT. Vui lòng kiểm tra kết nối.', false);
+                                    }
+                                });
+                            } else {
+                                showMessage(errorDiv, 'Mật khẩu cũ không đúng.', false);
+                            }
+                        })
+                        .catch((error) => {
+                            showMessage(errorDiv, 'Lỗi: ' + error.message, false);
+                        });
+                }
+
+                window.firebase.auth().onAuthStateChanged((user) => {
+                    try {
+                        const signupLink = document.getElementById('signup-link');
+                        const signinLink = document.getElementById('signin-link');
+                        const accountMenu = document.getElementById('account-menu');
+                        const accountImage = document.getElementById('account-image');
+                        const dropdownMenu = document.getElementById('dropdown-menu');
+                        const welcome = document.getElementById('welcome');
+                        const doorStatus = document.getElementById('door-status');
+
+                        if (user && user.emailVerified) {
+                            console.log('User authenticated:', user.email);
+                            signupLink.classList.add('hidden');
+                            signinLink.classList.add('hidden');
+                            accountMenu.classList.remove('hidden');
+                            welcome.textContent = `Chào mừng, ${user.email}!`;
+
+                            window.firebase.firestore().collection('users').doc(user.uid).get()
+                                .then((doc) => {
+                                    if (doc.exists && doc.data().avatarUrl) {
+                                        accountImage.src = doc.data().avatarUrl;
+                                    }
+                                })
+                                .catch((error) => {
+                                    console.error('Error loading avatar:', error);
+                                });
+
+                            const newAccountMenu = accountMenu.cloneNode(true);
+                            accountMenu.parentNode.replaceChild(newAccountMenu, accountMenu);
+                            const newDropdownMenu = newAccountMenu.querySelector('#dropdown-menu');
+
+                            let hideTimeout = null;
+
+                            const showDropdown = () => {
+                                clearTimeout(hideTimeout);
+                                newDropdownMenu.classList.remove('hidden');
+                            };
+
+                            const hideDropdown = () => {
+                                hideTimeout = setTimeout(() => {
+                                    newDropdownMenu.classList.add('hidden');
+                                }, 200);
+                            };
+
+                            newAccountMenu.addEventListener('mouseenter', showDropdown);
+                            newAccountMenu.addEventListener('mouseleave', hideDropdown);
+                            newDropdownMenu.addEventListener('mouseenter', showDropdown);
+                            newDropdownMenu.addEventListener('mouseleave', hideDropdown);
+
+                            newAccountMenu.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                clearTimeout(hideTimeout);
+                                newDropdownMenu.classList.toggle('hidden');
+                            });
+
+                            document.addEventListener('click', (e) => {
+                                if (!newAccountMenu.contains(e.target)) {
+                                    clearTimeout(hideTimeout);
+                                    newDropdownMenu.classList.add('hidden');
+                                }
+                            });
+
+                            // Initialize MQTT
+                            console.log('Initializing MQTT connection');
+                            connectMQTT();
+                            const interval = setInterval(() => {
+                                if (mqttClient && mqttClient.connected) {
+                                    console.log('MQTT client connected');
+                                    mqttClient.on("message", (topic, message) => {
+                                        const msg = message.toString();
+                                        if (topic === "door/status") {
+                                            console.log("📥 Trạng thái cửa từ ESP32:", msg);
+                                            if (doorStatus) {
+                                                doorStatus.textContent = msg;
+                                            }
+                                        }
+                                    });
+                                    clearInterval(interval);
+                                } else {
+                                    console.error('MQTT client not initialized or not connected');
+                                    if (doorStatus) {
+                                        doorStatus.textContent = 'Lỗi: Không thể kết nối MQTT.';
+                                        doorStatus.classList.add('text-red-400');
+                                    }
+                                }
+                            }, 500);
+                        } else if (user && !user.emailVerified) {
+                            console.log('User not verified, redirecting to verify.html');
+                            window.location.href = 'verify.html';
+                        } else {
+                            console.log('No user, redirecting to signin.html');
+                            window.location.href = 'signin.html';
+                        }
+                    } catch (error) {
+                        console.error('Auth state error:', error);
+                        welcome.textContent = 'Lỗi xác thực: ' + error.message;
+                        welcome.classList.add('text-red-400');
+                    }
+                });
+            });
+        });
+
+        // Fallback in case firebaseInitialized event is missed
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!window.firebase || !window.firebase.auth) {
+                initializeFirebaseAuth(() => {});
+            }
+        });
     </script>
 </body>
 </html>

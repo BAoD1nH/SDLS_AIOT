@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - MyLock</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
+    <script type="module">
+        import { auth, db, storage } from './js/firebase.js';
+        console.log('firebase.js imported successfully');
+
+        try {
+            console.log('Loading firebase.js module');
+            if (!firebase.apps.length) {
+                throw new Error('Firebase app not initialized in firebase.js');
+            }
+            window.firebase = { 
+                auth: () => auth,
+                firestore: () => db,
+                storage: () => storage
+            };
+            console.log('Firebase initialized successfully');
+            window.dispatchEvent(new Event('firebaseInitialized'));
+        } catch (error) {
+            console.error('Firebase module initialization failed:', error);
+            const errorDiv = document.getElementById('avatar-error');
+            if (errorDiv) {
+                errorDiv.textContent = 'Lỗi khởi tạo Firebase: ' + error.message;
+                errorDiv.classList.remove('hidden');
+            }
+        }
+    </script>
+    <script defer src="js/auth.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
+    <nav class="bg-gray-800 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <img src="assets/logo.png" onerror="this.src='https://via.placeholder.com/32'" alt="MyLock Logo" class="h-8 w-8 mr-2">
+                    <a href="mylock.html" class="text-xl font-bold text-gray-300">MyLock</a>
+                </div>
+                <div id="nav-links" class="flex items-center space-x-4">
+                    <a href="mylock.html" class="bg-gray-600 text-gray-200 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-500">Dashboard</a>
+                    <a id="signup-link" href="signup.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Sign Up</a>
+                    <a id="signin-link" href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Sign In</a>
+                    <div id="account-menu" class="relative hidden">
+                        <img id="account-image" src="https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png" alt="Account" class="h-10 w-10 rounded-full cursor-pointer">
+                        <div id="dropdown-menu" class="absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-50 hidden">
+                            <a href="setting.html" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Settings</a>
+                            <button onclick="logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Log Out</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex-grow py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-4xl mx-auto space-y-8">
+            <div class="text-center">
+                <h2 class="text-3xl font-extrabold text-gray-200">Cài Đặt Tài Khoản</h2>
+                <p class="mt-2 text-lg text-gray-400">Quản lý thông tin tài khoản của bạn</p>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-bold text-gray-200 mb-4">Ảnh Đại Diện</h3>
+                <div class="flex items-center space-x-4">
+                    <img id="avatar-preview" src="https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png" alt="Avatar Preview" class="h-24 w-24 rounded-full">
+                    <div>
+                        <input id="avatar-input" type="file" accept="image/*" class="text-sm text-gray-400">
+                        <button onclick="uploadAvatar()" class="mt-2 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300">Tải Lên</button>
+                    </div>
+                </div>
+                <p id="avatar-error" class="mt-2 text-sm text-red-400 hidden"></p>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-bold text-gray-200 mb-4">Đổi Mật Khẩu Tài Khoản</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label for="current-password" class="sr-only">Mật khẩu hiện tại</label>
+                        <input id="current-password" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Mật khẩu hiện tại">
+                    </div>
+                    <div>
+                        <label for="new-password" class="sr-only">Mật khẩu mới</label>
+                        <input id="new-password" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Mật khẩu mới">
+                    </div>
+                    <button onclick="updatePassword()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                        Cập nhật mật khẩu tài khoản
+                    </button>
+                </div>
+                <p id="password-error" class="mt-2 text-sm text-red-400 hidden"></p>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-bold text-gray-200 mb-4">Cập Nhật Email</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label for="new-email" class="sr-only">Email mới</label>
+                        <input id="new-email" type="email" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Email mới">
+                    </div>
+                    <button onclick="updateEmail()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                        Cập nhật Email
+                    </button>
+                </div>
+                <p id="email-error" class="mt-2 text-sm text-red-400 hidden"></p>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-bold text-gray-200 mb-4">Cập Nhật Số Điện Thoại</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label for="phone-number" class="sr-only">Số điện thoại</label>
+                        <input id="phone-number" type="tel" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Số điện thoại">
+                    </div>
+                    <button onclick="updatePhoneNumber()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                        Cập nhật Số Điện Thoại
+                    </button>
+                </div>
+                <p id="phone-error" class="mt-2 text-sm text-red-400 hidden"></p>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-bold text-gray-200 mb-4">Cập Nhật Tên Người Dùng</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label for="username" class="sr-only">Tên người dùng</label>
+                        <input id="username" type="text" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Tên người dùng">
+                    </div>
+                    <button onclick="updateUsername()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                        Cập nhật Tên Người Dùng
+                    </button>
+                </div>
+                <p id="username-error" class="mt-2 text-sm text-red-400 hidden"></p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-gray-900 text-gray-400 py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p>© 2025 MyLock. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Wait for Firebase initialization
+        window.addEventListener('firebaseInitialized', () => {
+            if (!window.firebase || !window.firebase.auth) {
+                const errorDiv = document.getElementById('avatar-error');
+                if (errorDiv) {
+                    errorDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
+                    errorDiv.classList.remove('hidden');
+                }
+                console.error('Firebase initialization failed');
+                return;
+            }
+
+            window.firebase.auth().onAuthStateChanged((user) => {
+                try {
+                    const signupLink = document.getElementById('signup-link');
+                    const signinLink = document.getElementById('signin-link');
+                    const accountMenu = document.getElementById('account-menu');
+                    const accountImage = document.getElementById('account-image');
+                    const dropdownMenu = document.getElementById('dropdown-menu');
+
+                    if (user && user.emailVerified) {
+                        signupLink.classList.add('hidden');
+                        signinLink.classList.add('hidden');
+                        accountMenu.classList.remove('hidden');
+
+                        window.firebase.firestore().collection('users').doc(user.uid).get()
+                            .then((doc) => {
+                                if (doc.exists) {
+                                    if (doc.data().avatarUrl) {
+                                        accountImage.src = doc.data().avatarUrl;
+                                        document.getElementById('avatar-preview').src = doc.data().avatarUrl;
+                                    }
+                                    if (doc.data().phoneNumber) {
+                                        document.getElementById('phone-number').value = doc.data().phoneNumber;
+                                    }
+                                    if (doc.data().username) {
+                                        document.getElementById('username').value = doc.data().username;
+                                    }
+                                    if (doc.data().email) {
+                                        document.getElementById('new-email').value = doc.data().email;
+                                    }
+                                }
+                            })
+                            .catch((error) => {
+                                console.error('Error loading user data:', error);
+                            });
+
+                        const newAccountMenu = accountMenu.cloneNode(true);
+                        accountMenu.parentNode.replaceChild(newAccountMenu, accountMenu);
+                        const newDropdownMenu = newAccountMenu.querySelector('#dropdown-menu');
+
+                        let hideTimeout = null;
+
+                        const showDropdown = () => {
+                            clearTimeout(hideTimeout);
+                            newDropdownMenu.classList.remove('hidden');
+                        };
+
+                        const hideDropdown = () => {
+                            hideTimeout = setTimeout(() => {
+                                newDropdownMenu.classList.add('hidden');
+                            }, 200);
+                        };
+
+                        newAccountMenu.addEventListener('mouseenter', showDropdown);
+                        newAccountMenu.addEventListener('mouseleave', hideDropdown);
+                        newDropdownMenu.addEventListener('mouseenter', showDropdown);
+                        newDropdownMenu.addEventListener('mouseleave', hideDropdown);
+
+                        newAccountMenu.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            clearTimeout(hideTimeout);
+                            newDropdownMenu.classList.toggle('hidden');
+                        });
+
+                        document.addEventListener('click', (e) => {
+                            if (!newAccountMenu.contains(e.target)) {
+                                clearTimeout(hideTimeout);
+                                newDropdownMenu.classList.add('hidden');
+                            }
+                        });
+                    } else if (user && !user.emailVerified) {
+                        window.location.href = 'verify.html';
+                    } else {
+                        window.location.href = 'signin.html';
+                    }
+                } catch (error) {
+                    console.error('Auth state error:', error);
+                    const errorDiv = document.getElementById('avatar-error');
+                    if (errorDiv) {
+                        errorDiv.textContent = 'Lỗi xác thực: ' + error.message;
+                        errorDiv.classList.remove('hidden');
+                    }
+                }
+            });
+        });
+
+        // Fallback in case firebaseInitialized event is missed
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded');
+            setTimeout(() => {
+                if (!window.firebase || !window.firebase.auth) {
+                    const errorMessageDiv = document.getElementById('avatar-error');
+                    if (errorMessageDiv) {
+                        errorMessageDiv.textContent = 'Lỗi: Firebase khởi tạo thất bại sau thời gian chờ.';
+                        errorMessageDiv.classList.remove('hidden');
+                    }
+                    console.error('Firebase initialization failed after timeout');
+                }
+            }, 5000);
+        });
+    </script>
+</body>
+</html>
