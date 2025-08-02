@@ -94,7 +94,8 @@
                     setTimeout(() => div.classList.add('hidden'), 5000);
                 }
 
-                function logout() {
+                // Expose functions to global scope
+                window.logout = function() {
                     window.firebase.auth().signOut()
                         .then(() => {
                             alert('Đã đăng xuất thành công!');
@@ -105,50 +106,84 @@
                         .catch((error) => {
                             alert('Lỗi: ' + error.message);
                         });
-                }
+                };
 
-                function resendVerificationEmail() {
+                window.resendVerificationEmail = function() {
                     const user = window.firebase.auth().currentUser;
                     const errorDiv = document.getElementById('verify-error');
 
                     if (user) {
                         user.sendEmailVerification()
                             .then(() => {
-                                showMessage(errorDiv, 'Email xác minh đã được gửi lại!', true);
+                                console.log('Verification email resent successfully'); // Debug log
+                                showMessage(errorDiv, 'Email xác minh đã được gửi lại! Vui lòng kiểm tra hộp thư đến hoặc thư rác.', true);
                             })
                             .catch((error) => {
-                                showMessage(errorDiv, 'Lỗi: ' + error.message, false);
+                                console.error('Resend verification email error:', error.code, error.message); // Debug log
+                                let errorMessage = 'Lỗi: ';
+                                switch (error.code) {
+                                    case 'auth/too-many-requests':
+                                        errorMessage += 'Quá nhiều yêu cầu. Vui lòng thử lại sau.';
+                                        break;
+                                    default:
+                                        errorMessage += error.message;
+                                }
+                                showMessage(errorDiv, errorMessage, false);
                             });
                     } else {
                         showMessage(errorDiv, 'Không tìm thấy người dùng. Vui lòng đăng nhập lại.', false);
                         window.location.href = 'signin.html';
                     }
-                }
+                };
 
-                function checkVerificationStatus() {
+                window.checkVerificationStatus = function() {
                     const user = window.firebase.auth().currentUser;
                     const errorDiv = document.getElementById('verify-error');
 
                     if (user) {
                         user.reload().then(() => {
                             if (user.emailVerified) {
-                                showMessage(errorDiv, 'Email đã được xác minh! Đang chuyển hướng...', true);
-                                localStorage.setItem('isLoggedIn', 'true');
-                                localStorage.setItem('userEmail', user.email);
-                                setTimeout(() => {
-                                    window.location.href = 'mylock.html';
-                                }, 2000);
+                                console.log('Email verified, saving user data to Firestore'); // Debug log
+                                // Save user data to Firestore
+                                window.firebase.firestore().collection('users').doc(user.uid).set({
+                                    email: user.email,
+                                    username: user.email.split('@')[0],
+                                    phoneNumber: '',
+                                    lockPassword: '',
+                                    avatarUrl: 'https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png'
+                                }).then(() => {
+                                    console.log('User data saved to Firestore'); // Debug log
+                                    showMessage(errorDiv, 'Email đã được xác minh! Đang chuyển hướng...', true);
+                                    localStorage.setItem('isLoggedIn', 'true');
+                                    localStorage.setItem('userEmail', user.email);
+                                    setTimeout(() => {
+                                        window.location.href = 'mylock.html';
+                                    }, 2000);
+                                }).catch((error) => {
+                                    console.error('Error saving user data:', error.code, error.message); // Debug log
+                                    let errorMessage = 'Lỗi khi lưu dữ liệu người dùng: ';
+                                    switch (error.code) {
+                                        case 'permission-denied':
+                                            errorMessage += 'Không có quyền truy cập Firestore.';
+                                            break;
+                                        default:
+                                            errorMessage += error.message;
+                                    }
+                                    showMessage(errorDiv, errorMessage, false);
+                                });
                             } else {
+                                console.log('Email not yet verified'); // Debug log
                                 showMessage(errorDiv, 'Email chưa được xác minh. Vui lòng kiểm tra email của bạn.', false);
                             }
                         }).catch((error) => {
+                            console.error('Check verification status error:', error.code, error.message); // Debug log
                             showMessage(errorDiv, 'Lỗi: ' + error.message, false);
                         });
                     } else {
                         showMessage(errorDiv, 'Không tìm thấy người dùng. Vui lòng đăng nhập lại.', false);
                         window.location.href = 'signin.html';
                     }
-                }
+                };
 
                 window.firebase.auth().onAuthStateChanged((user) => {
                     try {
@@ -161,9 +196,30 @@
 
                         if (user) {
                             if (user.emailVerified) {
-                                localStorage.setItem('isLoggedIn', 'true');
-                                localStorage.setItem('userEmail', user.email);
-                                window.location.href = 'mylock.html';
+                                // Check if user data exists in Firestore
+                                window.firebase.firestore().collection('users').doc(user.uid).get()
+                                    .then((doc) => {
+                                        if (!doc.exists) {
+                                            // Save user data if it doesn't exist
+                                            return window.firebase.firestore().collection('users').doc(user.uid).set({
+                                                email: user.email,
+                                                username: user.email.split('@')[0],
+                                                phoneNumber: '',
+                                                lockPassword: '',
+                                                avatarUrl: 'https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png'
+                                            });
+                                        }
+                                    })
+                                    .then(() => {
+                                        console.log('User data verified or created'); // Debug log
+                                        localStorage.setItem('isLoggedIn', 'true');
+                                        localStorage.setItem('userEmail', user.email);
+                                        window.location.href = 'mylock.html';
+                                    })
+                                    .catch((error) => {
+                                        console.error('Error checking/saving user data:', error.code, error.message);
+                                        showMessage(document.getElementById('verify-error'), 'Lỗi: ' + error.message, false);
+                                    });
                             } else {
                                 dashboardLink.classList.add('hidden');
                                 signupLink.classList.add('hidden');
@@ -218,12 +274,26 @@
                                 const checkVerification = setInterval(() => {
                                     user.reload().then(() => {
                                         if (window.firebase.auth().currentUser.emailVerified) {
-                                            clearInterval(checkVerification);
-                                            localStorage.setItem('isLoggedIn', 'true');
-                                            localStorage.setItem('userEmail', user.email);
-                                            window.location.href = 'mylock.html';
+                                            console.log('Email verified in interval, saving user data'); // Debug log
+                                            window.firebase.firestore().collection('users').doc(user.uid).set({
+                                                email: user.email,
+                                                username: user.email.split('@')[0],
+                                                phoneNumber: '',
+                                                lockPassword: '',
+                                                avatarUrl: 'https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png'
+                                            }).then(() => {
+                                                console.log('User data saved to Firestore'); // Debug log
+                                                clearInterval(checkVerification);
+                                                localStorage.setItem('isLoggedIn', 'true');
+                                                localStorage.setItem('userEmail', user.email);
+                                                window.location.href = 'mylock.html';
+                                            }).catch((error) => {
+                                                console.error('Error saving user data:', error.code, error.message); // Debug log
+                                                showMessage(document.getElementById('verify-error'), 'Lỗi khi lưu dữ liệu người dùng: ' + error.message, false);
+                                            });
                                         }
                                     }).catch((error) => {
+                                        console.error('Interval check error:', error.code, error.message); // Debug log
                                         showMessage(document.getElementById('verify-error'), 'Lỗi: ' + error.message, false);
                                     });
                                 }, 5000);
