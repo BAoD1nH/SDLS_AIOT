@@ -42,15 +42,20 @@ function signUp() {
     window.firebase.auth().createUserWithEmailAndPassword(email, password)
         .then((userCredential) => {
             const user = userCredential.user;
-            return window.firebase.firestore().collection('users').doc(user.uid).set({
-                email: user.email,
-                username: email.split('@')[0],
-                phoneNumber: '',
-                lockPassword: '',
-                avatarUrl: 'https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png'
-            }).then(() => user.sendEmailVerification());
+            console.log('User created:', user.email); // Debug log
+            return user.sendEmailVerification();
+            }).then(() => {
+                console.log('User data saved to Firestore'); // Debug log
+                return window.firebase.firestore().collection('users').doc(user.uid).set({
+                    email: user.email,
+                    username: email.split('@')[0],
+                    phoneNumber: '',
+                    lockPassword: '',
+                    avatarUrl: 'https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png'
+            });
         })
         .then(() => {
+            console.log('Verification email sent'); // Debug log
             errorMessageDiv.textContent = 'Đăng ký thành công! Đang chuyển hướng để xác minh email...';
             errorMessageDiv.classList.remove('hidden');
             errorMessageDiv.classList.remove('text-red-400');
@@ -60,6 +65,7 @@ function signUp() {
             }, 2000);
         })
         .catch((error) => {
+            console.error('Sign-up error:', error); // Debug log
             let errorMessage = 'Lỗi khi đăng ký: ';
             switch (error.code) {
                 case 'auth/email-already-in-use':
