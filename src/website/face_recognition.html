@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Face Recognition - MyLock</title>
+
+	<!-- Firebase & MQTT -->
+	<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+	<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+	<!-- Firebase Setup -->
+	<script type="module">
+		import { auth, db } from './js/firebase.js';
+		if (!firebase.apps.length) throw new Error('Firebase not initialized');
+		window.firebase = { auth: () => auth, firestore: () => db };
+		window.dispatchEvent(new Event('firebaseInitialized'));
+	</script>
+
+	<!-- MQTT and Logic -->
+	<script defer src="js/mqtt.js"></script>
+	<script defer src="js/face_recognition.js"></script>
+
+	<!-- Tailwind -->
+	<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
+
+	<!-- Navbar (same as mylock.html) -->
+	<nav class="bg-gray-800 shadow-md">
+		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="flex justify-between h-16">
+				<div class="flex items-center">
+					<img src="assets/logo.png" onerror="this.src='https://via.placeholder.com/32'" alt="MyLock Logo" class="h-8 w-8 mr-2">
+					<a href="mylock.html" class="text-xl font-bold text-gray-300">MyLock</a>
+				</div>
+				<div id="nav-links" class="flex items-center space-x-4">
+					<a href="mylock.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
+					<a href="face_recognition.html" class="bg-gray-600 text-gray-200 px-3 py-2 rounded-md text-sm font-medium">FaceID</a>
+					<a id="signup-link" href="signup.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Sign Up</a>
+					<a id="signin-link" href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Sign In</a>
+					<div id="account-menu" class="relative hidden">
+						<img id="account-image" src="https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png" alt="Account" class="h-10 w-10 rounded-full cursor-pointer">
+						<div id="dropdown-menu" class="absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-50 hidden">
+							<a href="setting.html" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Settings</a>
+							<button onclick="logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Log Out</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</nav>
+
+	<!-- Main Content -->
+	<main class="flex-grow py-12 px-4 sm:px-6 lg:px-8">
+		<div class="max-w-4xl mx-auto space-y-10">
+
+			<div class="text-center">
+				<h2 class="text-3xl font-extrabold text-gray-200">📸 Face Recognition</h2>
+				<p id="status" class="mt-2 text-lg text-gray-400">Đang kiểm tra xác thực người dùng...</p>
+			</div>
+
+			<!-- Enroll Section -->
+			<section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+				<h3 class="text-xl font-bold mb-4">Đăng ký khuôn mặt</h3>
+				<form id="enroll-form" class="space-y-4">
+					<input type="text" id="userId" placeholder="User ID" required class="w-full px-4 py-2 bg-gray-700 text-gray-200 rounded-md border border-gray-600">
+					<input type="text" id="userName" placeholder="Họ tên" required class="w-full px-4 py-2 bg-gray-700 text-gray-200 rounded-md border border-gray-600">
+					<input type="file" id="faceImage" accept="image/*" required class="w-full px-4 py-2 text-gray-200 bg-gray-700 rounded-md border border-gray-600">
+					<button type="submit" class="w-full py-2 bg-gray-200 text-gray-900 rounded-md hover:bg-gray-300 font-medium">Đăng ký</button>
+					<p id="enroll-status" class="text-sm text-green-400 mt-2"></p>
+				</form>
+			</section>
+
+			<!-- Registered Users -->
+			<section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+				<h3 class="text-xl font-bold mb-4">Danh sách người dùng đã đăng ký</h3>
+				<table class="w-full text-left border border-gray-700 text-gray-300">
+					<thead>
+						<tr class="bg-gray-700 text-gray-200">
+							<th class="px-4 py-2">User ID</th>
+							<th class="px-4 py-2">Tên</th>
+							<th class="px-4 py-2">Thời gian</th>
+						</tr>
+					</thead>
+					<tbody id="userList"></tbody>
+				</table>
+			</section>
+
+			<!-- Verified Log -->
+			<section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+				<h3 class="text-xl font-bold mb-4">Xác thực thành công</h3>
+				<ul id="verificationList" class="text-gray-400 space-y-2"></ul>
+			</section>
+
+		</div>
+	</main>
+
+	<!-- Footer -->
+	<footer class="bg-gray-900 text-gray-400 py-6 text-center">
+		<p>© 2025 MyLock. All rights reserved.</p>
+	</footer>
+
+</body>
+</html>
