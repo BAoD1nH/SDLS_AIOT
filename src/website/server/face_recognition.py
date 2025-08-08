@@ -5,7 +5,7 @@ import time
 import paho.mqtt.client as mqtt
 
 # ========= MQTT CONFIG =========
-MQTT_BROKER = "192.168.1.5"  # broker của bạn
+MQTT_BROKER = "192.168.1.6"  # broker của bạn
 MQTT_PORT = 1883
 MQTT_TOPIC = "smartlock/verify"  # ESP32-S3 sẽ subscribe
 MQTT_CLIENT_ID = "server-face-recog"
@@ -13,6 +13,7 @@ MQTT_CLIENT_ID = "server-face-recog"
 client = mqtt.Client(client_id=MQTT_CLIENT_ID, clean_session=True)
 client.connect(MQTT_BROKER, MQTT_PORT, keepalive=30)
 client.loop_start()
+# ===============================
 
 # Ảnh probe từ ESP32-CAM
 probe_path = Path("./upload-esp32/frame.jpg")
@@ -31,9 +32,11 @@ if not gallery_root.exists():
 	print(f"[ERROR] Gallery folder not found: {gallery_root}")
 	exit(1)
 
+authenticated = False
+
 for user_dir in gallery_root.iterdir():
 	if not user_dir.is_dir():
-		continue  # bỏ qua file lẻ trong upload/
+		continue
 	user_id = user_dir.name
 
 	for img_path in user_dir.iterdir():
@@ -47,7 +50,7 @@ for user_dir in gallery_root.iterdir():
 				img1_path=str(probe_path),
 				img2_path=str(img_path),
 				model_name="Facenet512",
-				enforce_detection=False  # tránh lỗi khi không detect được mặt
+				enforce_detection=False
 			)
 			distance = result["distance"]
 			verified = result["verified"]
@@ -76,7 +79,7 @@ for user_dir in gallery_root.iterdir():
 
 		except Exception as e:
 			print(f"User {user_id} / {img_path.name}: ERROR - {e}")
-	
+
 	if authenticated:
 		break
 
