@@ -15,17 +15,24 @@ function logUserAction(userId, action) {
         return Promise.reject(new Error('Firestore not initialized'));
     }
     const db = firebase.firestore();
-    return db.collection('users').doc(userId).set(
-        { history: [] },
-        { merge: true }
-    ).then(() => {
-        return db.collection('users').doc(userId).update({
-            history: firebase.firestore.FieldValue.arrayUnion({
-                date: new Date().toISOString(), // Use client-side timestamp
-                action: action
-            })
-        });
+    const userRef = db.collection('users').doc(userId);
+    return userRef.update({
+        history: firebase.firestore.FieldValue.arrayUnion({
+            date: new Date().toISOString(),
+            action: action
+        })
     }).catch((error) => {
+        // If document doesn't exist, create it with the first history entry
+        if (error.code === 'not-found' || error.message.includes('No document to update')) {
+            return userRef.set({
+                history: [{
+                    date: new Date().toISOString(),
+                    action: action
+                }]
+            }, { merge: true }).then(() => {
+                console.log('User document created with initial history entry');
+            });
+        }
         console.error('Error logging user action:', error.code, error.message);
         return Promise.reject(error);
     });

@@ -159,6 +159,49 @@
             }
         }
 
+        // Function to format ISO date to readable format
+        function formatDate(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleString('en-GB', {
+                hour: 'numeric',
+                minute: 'numeric',
+                hour12: true,
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            }).replace(',', '');
+        }
+
+        // Function to populate history table
+        function populateHistoryTable(userId) {
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = ''; // Clear existing rows
+            window.firebase.firestore().collection('users').doc(userId).get()
+                .then((doc) => {
+                    if (doc.exists && doc.data().history && Array.isArray(doc.data().history)) {
+                        const history = doc.data().history.sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort descending
+                        if (history.length === 0) {
+                            historyList.innerHTML = '<tr><td colspan="2" class="px-6 py-4 text-sm text-gray-400 text-center">Không có lịch sử hoạt động.</td></tr>';
+                            return;
+                        }
+                        history.forEach((entry) => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${formatDate(entry.date)}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${entry.action}</td>
+                            `;
+                            historyList.appendChild(row);
+                        });
+                    } else {
+                        historyList.innerHTML = '<tr><td colspan="2" class="px-6 py-4 text-sm text-gray-400 text-center">Không có lịch sử hoạt động.</td></tr>';
+                    }
+                })
+                .catch((error) => {
+                    console.error('Error loading history:', error);
+                    historyList.innerHTML = '<tr><td colspan="2" class="px-6 py-4 text-sm text-red-400 text-center">Lỗi khi tải lịch sử: ' + error.message + '</td></tr>';
+                });
+        }
+
         // Wait for Firebase initialization
         window.addEventListener('firebaseInitialized', () => {
             initializeFirebaseAuth(() => {
@@ -178,7 +221,6 @@
                         const dropdownMenu = document.getElementById('dropdown-menu');
                         const welcome = document.getElementById('welcome');
                         const doorStatus = document.getElementById('door-status');
-                        const historyList = document.getElementById('historyList');
 
                         if (user && user.emailVerified) {
                             console.log('User authenticated:', user.email);
@@ -189,37 +231,14 @@
                             localStorage.setItem('isLoggedIn', 'true');
                             localStorage.setItem('userEmail', user.email);
 
-                            // Load user avatar from Firestore
+                            // Load user data and history
                             window.firebase.firestore().collection('users').doc(user.uid).get()
                                 .then((doc) => {
                                     if (doc.exists && doc.data().avatarUrl) {
                                         accountImage.src = doc.data().avatarUrl;
                                     }
-                                    // Load and display history
-                                    if (doc.exists && doc.data().history) {
-                                        historyList.innerHTML = '';
-                                        const history = doc.data().history;
-                                        history.sort((a, b) => b.date.toMillis() - a.date.toMillis()); // Sort by date descending
-                                        history.forEach((entry) => {
-                                            if (entry.date) {
-                                                const date = entry.date.toDate();
-                                                const formattedDate = date.toLocaleString('en-GB', {
-                                                    hour: 'numeric',
-                                                    minute: 'numeric',
-                                                    hour12: true,
-                                                    day: '2-digit',
-                                                    month: '2-digit',
-                                                    year: 'numeric'
-                                                }).replace(',', '');
-                                                const row = document.createElement('tr');
-                                                row.innerHTML = `
-                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${formattedDate}</td>
-                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${entry.action}</td>
-                                                `;
-                                                historyList.appendChild(row);
-                                            }
-                                        });
-                                    }
+                                    // Populate history table
+                                    populateHistoryTable(user.uid);
                                 })
                                 .catch((error) => {
                                     console.error('Error loading user data:', error);
@@ -275,36 +294,7 @@
                                                 doorStatus.textContent = msg;
                                             }
                                             // Refresh history on door status change
-                                            window.firebase.firestore().collection('users').doc(user.uid).get()
-                                                .then((doc) => {
-                                                    if (doc.exists && doc.data().history) {
-                                                        historyList.innerHTML = '';
-                                                        const history = doc.data().history;
-                                                        history.sort((a, b) => b.date.toMillis() - a.date.toMillis());
-                                                        history.forEach((entry) => {
-                                                            if (entry.date) {
-                                                                const date = entry.date.toDate();
-                                                                const formattedDate = date.toLocaleString('en-GB', {
-                                                                    hour: 'numeric',
-                                                                    minute: 'numeric',
-                                                                    hour12: true,
-                                                                    day: '2-digit',
-                                                                    month: '2-digit',
-                                                                    year: 'numeric'
-                                                                }).replace(',', '');
-                                                                const row = document.createElement('tr');
-                                                                row.innerHTML = `
-                                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${formattedDate}</td>
-                                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${entry.action}</td>
-                                                                `;
-                                                                historyList.appendChild(row);
-                                                            }
-                                                        });
-                                                    }
-                                                })
-                                                .catch((error) => {
-                                                    console.error('Error refreshing history:', error);
-                                                });
+                                            populateHistoryTable(user.uid);
                                         }
                                     });
                                     clearInterval(interval);
