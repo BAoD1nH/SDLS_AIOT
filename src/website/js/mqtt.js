@@ -43,6 +43,33 @@ function connectMQTT() {
     window.mqttClient.on("error", (err) => {
         console.error("❌ Kết nối MQTT thất bại:", err.message);
     });
+
+    mqttClient.subscribe("esp32/camera/latest", (err) => {
+        if (err) {
+            console.error("❌ Không thể subscribe esp32/camera/latest:", err);
+        } else {
+            console.log("📡 Subscribed to esp32/camera/latest");
+        }
+    });
+
+    mqttClient.on("message", (topic, message) => {
+        if (topic === "esp32/camera/latest") {
+            try {
+                const data = JSON.parse(message.toString());
+
+                const imgEl = document.getElementById("esp32-camera-image");
+                const timeEl = document.getElementById("esp32-image-timestamp");
+
+                if (imgEl && data.imageUrl) {
+                    imgEl.src = data.imageUrl + `?t=${Date.now()}`; // cache-busting
+                    timeEl.textContent = `🕒 Gửi lúc: ${new Date(data.timestamp).toLocaleString()}`;
+                }
+            } catch (err) {
+                console.error("❌ Không thể parse ảnh từ MQTT:", err);
+            }
+        }
+    });
+
 }
 
 window.connectMQTT = connectMQTT;
