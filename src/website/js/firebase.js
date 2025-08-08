@@ -1,13 +1,12 @@
 const firebaseConfig = {
-  apiKey: "AIzaSyCmn8rOKa8i_-wUyNTtz5MPH21nfswDNYc",
-  authDomain: "smart-door-lock-system-5a3ad.firebaseapp.com",
-  projectId: "smart-door-lock-system-5a3ad",
-  storageBucket: "smart-door-lock-system-5a3ad.firebasestorage.app",
-  messagingSenderId: "959993506245",
-  appId: "1:959993506245:web:f94215e5a92601c76003ac",
-  measurementId: "G-XVW8GW46CR"
+  apiKey: "AIzaSyBJL4_QZhwMQ9lvGmRClid44-zkxhBoTKw",
+  authDomain: "smart-door-lock-system-b9897.firebaseapp.com",
+  projectId: "smart-door-lock-system-b9897",
+  storageBucket: "smart-door-lock-system-b9897.firebasestorage.app",
+  messagingSenderId: "944814146140",
+  appId: "1:944814146140:web:8f01ba9d1a1281b1e6dc99",
+  measurementId: "G-C6BHJ1T7ZQ"
 };
-
 // Initialize Firebase
 const app = firebase.initializeApp(firebaseConfig);
 
