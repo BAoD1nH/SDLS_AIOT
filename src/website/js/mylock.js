@@ -13,12 +13,22 @@ function toggleLock() {
                 mqttClient.publish("door/control", "open");
                 console.log("📤 Gửi lệnh mở cửa tới ESP32.");
                 alert("🚪 Đã gửi lệnh mở cửa.");
+                // Log door open action
+                const user = window.firebase.auth().currentUser;
+                if (user) {
+                    logUserAction(user.uid, 'Mở khóa cửa');
+                }
             }, 1500); // 1.5 giây chờ ESP32 nhận OTP trước
         } else {
             // Nếu không bật 2FA, gửi lệnh mở cửa như thường
             mqttClient.publish("door/control", "open");
             console.log("📤 Gửi lệnh mở cửa tới ESP32.");
             alert("🚪 Đã gửi lệnh mở cửa.");
+            // Log door open action
+            const user = window.firebase.auth().currentUser;
+            if (user) {
+                logUserAction(user.uid, 'Mở khóa cửa');
+            }
         }
     } else {
         alert("❌ Không thể kết nối đến MQTT. Vui lòng kiểm tra kết nối.");
@@ -68,11 +78,14 @@ function changePassword() {
                 ).then(() => {
                     if (mqttClient && mqttClient.connected) {
                         mqttClient.publish("door/password", newPass);
-                        showMessage(errorDiv, 'Cập nhật mật khẩu khóa thành công!', true);
-                        console.log('📤 Gửi mật khẩu mới tới ESP32:', newPass);
-                        document.getElementById('oldPass').value = '';
-                        document.getElementById('confirmOld').value = '';
-                        document.getElementById('newPass').value = '';
+                        // Log lock password update action
+                        return logUserAction(user.uid, 'Cập nhật mật khẩu khóa').then(() => {
+                            showMessage(errorDiv, 'Cập nhật mật khẩu khóa thành công!', true);
+                            console.log('📤 Gửi mật khẩu mới tới ESP32:', newPass);
+                            document.getElementById('oldPass').value = '';
+                            document.getElementById('confirmOld').value = '';
+                            document.getElementById('newPass').value = '';
+                        });
                     } else {
                         showMessage(errorDiv, 'Không thể kết nối đến MQTT. Vui lòng kiểm tra kết nối.', false);
                     }
@@ -95,7 +108,13 @@ function toggle2FA() {
         const payload = is2FAEnabled ? "on" : "off";
         mqttClient.publish("door/2fa", payload);
         console.log("📤 Gửi trạng thái 2FA:", payload);
-        alert(`✅ Đã ${is2FAEnabled ? "bật" : "tắt"} xác thực hai bước (2FA).`);
+        // Log 2FA toggle action
+        const user = window.firebase.auth().currentUser;
+        if (user) {
+            logUserAction(user.uid, is2FAEnabled ? 'Bật xác thực hai yếu tố' : 'Tắt xác thực hai yếu tố').then(() => {
+                alert(`✅ Đã ${is2FAEnabled ? "bật" : "tắt"} xác thực hai bước (2FA).`);
+            });
+        }
     } else {
         alert("❌ MQTT chưa kết nối. Không thể gửi trạng thái 2FA.");
     }
@@ -108,6 +127,23 @@ function generateOTP(length = 6) {
         otp += digits[Math.floor(Math.random() * 10)];
     }
     return otp;
+}
+
+// Function to log user actions to Firestore (duplicated here to ensure availability)
+function logUserAction(userId, action) {
+    if (!window.firebase || !window.firebase.firestore) {
+        console.error('Firebase Firestore not initialized in logUserAction');
+        return;
+    }
+    const db = window.firebase.firestore();
+    return db.collection('users').doc(userId).update({
+        history: window.firebase.firestore.FieldValue.arrayUnion({
+            date: window.firebase.firestore.FieldValue.serverTimestamp(),
+            action: action
+        })
+    }).catch((error) => {
+        console.error('Error logging user action:', error.code, error.message);
+    });
 }
 
 // Expose functions to global scope
