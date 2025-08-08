@@ -1,5 +1,18 @@
 from deepface import DeepFace
 from pathlib import Path
+import json
+import time
+import paho.mqtt.client as mqtt
+
+# ========= MQTT CONFIG =========
+MQTT_BROKER = "192.168.1.5"  # broker của bạn
+MQTT_PORT = 1883
+MQTT_TOPIC = "smartlock/verify"  # ESP32-S3 sẽ subscribe
+MQTT_CLIENT_ID = "server-face-recog"
+
+client = mqtt.Client(client_id=MQTT_CLIENT_ID, clean_session=True)
+client.connect(MQTT_BROKER, MQTT_PORT, keepalive=30)
+client.loop_start()
 
 # Ảnh probe từ ESP32-CAM
 probe_path = Path("./upload-esp32/frame.jpg")
@@ -39,8 +52,44 @@ for user_dir in gallery_root.iterdir():
 			distance = result["distance"]
 			verified = result["verified"]
 
-			status = "Authentication successfully" if verified and distance <= threshold else "Authentication failed"
-			print(f"User {user_id} / {img_path.name}: {status} (distance: {distance:.4f})")
+			if verified and distance <= threshold:
+				status = "Authentication successfully"
+				print(f"User {user_id} / {img_path.name}: {status} (distance: {distance:.4f})")
+
+				# ======= PUBLISH MQTT NGAY LẬP TỨC =======
+				payload = {
+					"status": "ok",
+					"user_id": user_id,
+					"image": img_path.name,
+					"distance": float(distance),
+					"threshold": threshold,
+					"ts": int(time.time())
+				}
+				client.publish(MQTT_TOPIC, json.dumps(payload), qos=1, retain=False)
+				# =========================================
+
+				authenticated = True
+				break
+			else:
+				status = "Authentication failed"
+				print(f"User {user_id} / {img_path.name}: {status} (distance: {distance:.4f})")
 
 		except Exception as e:
 			print(f"User {user_id} / {img_path.name}: ERROR - {e}")
+	
+	if authenticated:
+		break
+
+# Tuỳ chọn: nếu muốn báo thất bại tổng thể
+if not authenticated:
+	fail_payload = {
+		"status": "fail",
+		"user_id": None,
+		"distance": None,
+		"threshold": threshold,
+		"ts": int(time.time())
+	}
+	client.publish(MQTT_TOPIC, json.dumps(fail_payload), qos=0, retain=False)
+
+client.loop_stop()
+client.disconnect()
