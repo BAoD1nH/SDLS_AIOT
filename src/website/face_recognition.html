@@ -5,21 +5,10 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<title>Face Recognition - MyLock</title>
 
-	<!-- Firebase & MQTT -->
-	<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-	<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-	<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+	<!-- MQTT (nếu bạn dùng) -->
 	<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 
-	<!-- Firebase Setup -->
-	<script type="module">
-		import { auth, db } from './js/firebase.js';
-		if (!firebase.apps.length) throw new Error('Firebase not initialized');
-		window.firebase = { auth: () => auth, firestore: () => db };
-		window.dispatchEvent(new Event('firebaseInitialized'));
-	</script>
-
-	<!-- MQTT and Logic -->
+	<!-- App scripts -->
 	<script defer src="js/mqtt.js"></script>
 	<script defer src="js/face_recognition.js"></script>
 
@@ -28,7 +17,7 @@
 </head>
 <body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
 
-	<!-- Navbar (same as mylock.html) -->
+	<!-- Navbar (giống mylock.html) -->
 	<nav class="bg-gray-800 shadow-md">
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 			<div class="flex justify-between h-16">
@@ -58,19 +47,34 @@
 		<div class="max-w-4xl mx-auto space-y-10">
 
 			<div class="text-center">
-				<h2 class="text-3xl font-extrabold text-gray-200">📸 Face Recognition</h2>
-				<p id="status" class="mt-2 text-lg text-gray-400">Đang kiểm tra xác thực người dùng...</p>
+				<h2 class="text-3xl font-extrabold text-gray-200">Face Recognition</h2>
+				<p id="status" class="mt-2 text-lg text-gray-400">Sẵn sàng upload ảnh lên server local.</p>
 			</div>
 
-			<!-- Enroll Section -->
+			<!-- Enroll Face Form -->
 			<section class="bg-gray-800 p-6 rounded-xl shadow-lg">
 				<h3 class="text-xl font-bold mb-4">Đăng ký khuôn mặt</h3>
-				<form id="enroll-form" class="space-y-4">
-					<input type="text" id="userId" placeholder="User ID" required class="w-full px-4 py-2 bg-gray-700 text-gray-200 rounded-md border border-gray-600">
-					<input type="text" id="userName" placeholder="Họ tên" required class="w-full px-4 py-2 bg-gray-700 text-gray-200 rounded-md border border-gray-600">
-					<input type="file" id="faceImage" accept="image/*" required class="w-full px-4 py-2 text-gray-200 bg-gray-700 rounded-md border border-gray-600">
-					<button type="submit" class="w-full py-2 bg-gray-200 text-gray-900 rounded-md hover:bg-gray-300 font-medium">Đăng ký</button>
-					<p id="enroll-status" class="text-sm text-green-400 mt-2"></p>
+				<form id="enroll-form" class="space-y-4" enctype="multipart/form-data">
+					<div>
+						<label class="block text-gray-400 mb-1">User ID</label>
+						<input id="userId" type="text" placeholder="VD: 12345" required
+							class="w-full px-4 py-2 bg-gray-700 text-gray-200 rounded-md border border-gray-600">
+					</div>
+					<div>
+						<label class="block text-gray-400 mb-1">Họ tên</label>
+						<input id="userName" type="text" placeholder="Họ tên" required
+							class="w-full px-4 py-2 bg-gray-700 text-gray-200 rounded-md border border-gray-600">
+					</div>
+					<div>
+						<label class="block text-gray-400 mb-1">Ảnh khuôn mặt</label>
+						<input type="file" id="faceImage" accept="image/*" required
+							class="block w-full text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-lg cursor-pointer focus:outline-none">
+					</div>
+					<p id="enroll-status" class="text-sm text-red-400"></p>
+					<button type="submit"
+						class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg focus:outline-none">
+						Upload
+					</button>
 				</form>
 			</section>
 
@@ -89,7 +93,7 @@
 				</table>
 			</section>
 
-			<!-- Verified Log -->
+			<!-- Verified Log (MQTT) -->
 			<section class="bg-gray-800 p-6 rounded-xl shadow-lg">
 				<h3 class="text-xl font-bold mb-4">Xác thực thành công</h3>
 				<ul id="verificationList" class="text-gray-400 space-y-2"></ul>
@@ -99,8 +103,10 @@
 	</main>
 
 	<!-- Footer -->
-	<footer class="bg-gray-900 text-gray-400 py-6 text-center">
-		<p>© 2025 MyLock. All rights reserved.</p>
+	<footer class="bg-gray-900 text-gray-400 py-6">
+		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+			<p>© 2025 MyLock. All rights reserved.</p>
+		</div>
 	</footer>
 
 </body>
