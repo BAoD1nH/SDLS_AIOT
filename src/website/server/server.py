@@ -4,6 +4,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from pathlib import Path
 from json import dumps, loads
+from PIL import Image
 import os, time, mimetypes
 
 app = Flask(__name__)
@@ -12,26 +13,32 @@ CORS(app)  # Dev: mở CORS cho frontend (localhost/127.0.0.1)
 # Giới hạn kích thước upload (10MB)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
-# ====== 1) ESP32-CAM: GIỮ NGUYÊN ENDPOINT ======
+# ====== 1) ESP32-CAM: GIỮ NGUYÊN ENDPOINT nhưng lưu vào upload-esp32 ======
+UPLOAD_ESP32_DIR = Path(__file__).parent / "upload-esp32"
+UPLOAD_ESP32_DIR.mkdir(parents=True, exist_ok=True)
+
 @app.route("/upload", methods=["POST"])
 def upload_frame():
     """
     ESP32-CAM post: form-data { meta, file }
-    Lưu file thành frame.jpg tại thư mục gốc dự án
+    Lưu file thành upload-esp32/frame.jpg
     """
     if "file" not in request.files:
         return "missing file", 400
     f = request.files["file"]
-    f.save("frame.jpg")
+
+    save_path = UPLOAD_ESP32_DIR / "frame.jpg"
+    f.save(save_path)
+
     meta = request.form.get("meta")
-    print("Meta:", meta, "Saved frame.jpg")
+    print(f"Meta: {meta}, Saved {save_path}")
     return "ok", 200
 
-
 # ====== 2) Web upload ảnh theo userId vào local ======
+# CHÚ Ý: đổi gốc lưu về 'upload' (không phải 'uploads/faces')
 ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 ROOT = Path(__file__).parent.resolve()
-UPLOAD_ROOT = ROOT / "uploads" / "faces"
+UPLOAD_ROOT = ROOT / "upload"  # <- đổi sang 'upload'
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 
 def allowed_ext(filename: str) -> bool:
@@ -42,6 +49,22 @@ def abs_url(rel_path: str) -> str:
     rel = rel_path if rel_path.startswith("/") else "/" + rel_path
     return f"{base}{rel}"
 
+def _next_index(user_dir: Path) -> int:
+    """
+    Tìm chỉ số tiếp theo dựa theo các file có tên dạng số (1.jpg, 2.jpg,...)
+    """
+    max_idx = 0
+    if user_dir.exists():
+        for p in user_dir.iterdir():
+            if p.is_file():
+                stem = p.stem
+                if stem.isdigit():
+                    try:
+                        max_idx = max(max_idx, int(stem))
+                    except:
+                        pass
+    return max_idx + 1
+
 @app.route("/upload-face", methods=["POST"])
 def upload_face():
     """
@@ -49,8 +72,9 @@ def upload_face():
       - userId (bắt buộc)
       - userName (tùy chọn)
       - faceImage (bắt buộc)
-    Lưu: uploads/faces/<userId>/<timestamp>.<ext>
-    Đồng thời cập nhật _meta.json để lưu userName.
+
+    Lưu: upload/<userId>/<n>.jpg  (n = 1,2,3,...)
+    Đồng thời cập nhật _meta.json để lưu userName và updatedAt.
     """
     user_id = (request.form.get("userId") or "").strip()
     user_name = (request.form.get("userName") or "").strip()
@@ -65,11 +89,19 @@ def upload_face():
     user_dir = UPLOAD_ROOT / safe_uid
     user_dir.mkdir(parents=True, exist_ok=True)
 
-    ts = int(time.time() * 1000)
-    ext = os.path.splitext(file.filename)[1].lower()
-    filename = f"{ts}{ext}"
+    # Tính chỉ số tiếp theo và đặt tên file n.jpg
+    next_idx = _next_index(user_dir)
+    filename = f"{next_idx}.jpg"  # luôn .jpg
     save_path = user_dir / filename
-    file.save(save_path)
+
+    # Đọc ảnh, convert sang JPEG
+    try:
+        img = Image.open(file.stream).convert("RGB")
+        img.save(save_path, format="JPEG", quality=95, optimize=True)
+    except Exception as e:
+        return jsonify({"message": f"Lỗi xử lý ảnh: {e}"}), 400
+
+    ts = int(time.time() * 1000)
 
     # Cập nhật metadata userName vào _meta.json
     meta_path = user_dir / "_meta.json"
@@ -84,35 +116,38 @@ def upload_face():
             pass
     meta_path.write_text(dumps(meta, ensure_ascii=False), encoding="utf-8")
 
-    rel_path = f"/uploads/faces/{safe_uid}/{filename}"
+    rel_path = f"/upload/{safe_uid}/{filename}"
     return jsonify({
         "message": "Upload thành công",
         "file_path": rel_path,
         "file_url": abs_url(rel_path),
         "userId": safe_uid,
         "userName": meta["userName"],
+        "index": next_idx,
         "timestamp": ts
     }), 200
 
-
 # ====== 3) Phục vụ ảnh đã lưu ======
-@app.route("/uploads/faces/<path:subpath>")
+# Đổi route phục vụ ảnh sang '/upload/...'
+@app.route("/upload/<path:subpath>")
 def serve_uploaded(subpath):
     base = UPLOAD_ROOT.resolve()
     full = (base / subpath).resolve()
     if not str(full).startswith(str(base)):  # tránh path traversal
         abort(403)
+    if not full.exists():
+        abort(404)
     mime, _ = mimetypes.guess_type(str(full))
     return send_from_directory(base, subpath, mimetype=mime or "application/octet-stream")
-
 
 # ====== 4) API danh sách user & ảnh ======
 @app.route("/api/users", methods=["GET"])
 def list_users():
     """
     Trả danh sách user theo filesystem:
-    [{ userId, userName, timestamp: <latest_ts> }, ...]
+    [{ userId, userName, latest_index, timestamp }, ...]
     userName đọc từ _meta.json
+    latest_index = chỉ số ảnh lớn nhất (nếu có)
     """
     result = []
     if not UPLOAD_ROOT.exists():
@@ -122,15 +157,19 @@ def list_users():
         if not user_dir.is_dir():
             continue
 
-        # timestamp mới nhất từ tên file (bỏ qua _meta.json)
-        latest_ts = 0
+        # tìm index lớn nhất
+        latest_idx = 0
+        latest_mtime = 0.0
         for p in user_dir.iterdir():
             if p.is_file() and p.name != "_meta.json":
-                try:
-                    ts = int(Path(p).stem)
-                    latest_ts = max(latest_ts, ts)
-                except:
-                    pass
+                stem = p.stem
+                if stem.isdigit():
+                    try:
+                        idx = int(stem)
+                        latest_idx = max(latest_idx, idx)
+                        latest_mtime = max(latest_mtime, p.stat().st_mtime)
+                    except:
+                        pass
 
         # đọc userName từ _meta.json nếu có
         user_name = ""
@@ -145,46 +184,51 @@ def list_users():
         result.append({
             "userId": user_dir.name,
             "userName": user_name,
-            "timestamp": latest_ts or None
+            "latest_index": latest_idx or None,
+            "timestamp": int(latest_mtime * 1000) if latest_mtime else None
         })
 
+    # sort theo thời gian sửa đổi mới nhất
     result.sort(key=lambda x: x["timestamp"] or 0, reverse=True)
     return jsonify(result), 200
-
 
 @app.route("/api/users/<user_id>/images", methods=["GET"])
 def list_user_images(user_id: str):
     """
     Liệt kê ảnh của 1 user:
-    [{ file_name, file_path, file_url, timestamp }, ...]
+    [{ file_name, file_path, file_url, index, timestamp }, ...]
     """
     safe_uid = secure_filename(user_id)
     user_dir = UPLOAD_ROOT / safe_uid
     images = []
     if user_dir.exists() and user_dir.is_dir():
-        for p in sorted(user_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-            if not p.is_file() or p.name == "_meta.json":
-                continue
-            ts = None
+        # sắp xếp theo index giảm dần
+        files = []
+        for p in user_dir.iterdir():
+            if p.is_file() and p.name != "_meta.json" and p.stem.isdigit():
+                files.append(p)
+        files.sort(key=lambda x: int(x.stem), reverse=True)
+
+        for p in files:
             try:
-                ts = int(p.stem)
+                idx = int(p.stem)
             except:
-                pass
-            rel_path = f"/uploads/faces/{safe_uid}/{p.name}"
+                idx = None
+            rel_path = f"/upload/{safe_uid}/{p.name}"
+            ts = int(p.stat().st_mtime * 1000)
             images.append({
                 "file_name": p.name,
                 "file_path": rel_path,
                 "file_url": abs_url(rel_path),
+                "index": idx,
                 "timestamp": ts
             })
     return jsonify(images), 200
-
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"}), 200
 
-
 if __name__ == "__main__":
-    # Chạy: pip install flask flask-cors
+    # Chạy: pip install flask flask-cors pillow
     app.run(host="0.0.0.0", port=8000, debug=True)
