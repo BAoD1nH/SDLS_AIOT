@@ -33,7 +33,6 @@
         }
     </script>
     <script defer src="js/mqtt.js"></script>
-    <script defer src="js/noti.js"></script>
     <script defer src="js/mylock.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -125,7 +124,17 @@
 
             <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
                 <h3 class="text-xl font-bold text-gray-200 mb-4">Lịch sử</h3>
-                <ul id="historyList" class="text-gray-400 space-y-2"></ul>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-700">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Ngày</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyList" class="divide-y divide-gray-700"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -168,6 +177,7 @@
                         const dropdownMenu = document.getElementById('dropdown-menu');
                         const welcome = document.getElementById('welcome');
                         const doorStatus = document.getElementById('door-status');
+                        const historyList = document.getElementById('historyList');
 
                         if (user && user.emailVerified) {
                             console.log('User authenticated:', user.email);
@@ -184,9 +194,34 @@
                                     if (doc.exists && doc.data().avatarUrl) {
                                         accountImage.src = doc.data().avatarUrl;
                                     }
+                                    // Load and display history
+                                    if (doc.exists && doc.data().history) {
+                                        historyList.innerHTML = '';
+                                        const history = doc.data().history;
+                                        history.sort((a, b) => b.date.toMillis() - a.date.toMillis()); // Sort by date descending
+                                        history.forEach((entry) => {
+                                            if (entry.date) {
+                                                const date = entry.date.toDate();
+                                                const formattedDate = date.toLocaleString('en-GB', {
+                                                    hour: 'numeric',
+                                                    minute: 'numeric',
+                                                    hour12: true,
+                                                    day: '2-digit',
+                                                    month: '2-digit',
+                                                    year: 'numeric'
+                                                }).replace(',', '');
+                                                const row = document.createElement('tr');
+                                                row.innerHTML = `
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${formattedDate}</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${entry.action}</td>
+                                                `;
+                                                historyList.appendChild(row);
+                                            }
+                                        });
+                                    }
                                 })
                                 .catch((error) => {
-                                    console.error('Error loading avatar:', error);
+                                    console.error('Error loading user data:', error);
                                 });
 
                             // Set up dropdown menu
@@ -238,6 +273,37 @@
                                             if (doorStatus) {
                                                 doorStatus.textContent = msg;
                                             }
+                                            // Refresh history on door status change
+                                            window.firebase.firestore().collection('users').doc(user.uid).get()
+                                                .then((doc) => {
+                                                    if (doc.exists && doc.data().history) {
+                                                        historyList.innerHTML = '';
+                                                        const history = doc.data().history;
+                                                        history.sort((a, b) => b.date.toMillis() - a.date.toMillis());
+                                                        history.forEach((entry) => {
+                                                            if (entry.date) {
+                                                                const date = entry.date.toDate();
+                                                                const formattedDate = date.toLocaleString('en-GB', {
+                                                                    hour: 'numeric',
+                                                                    minute: 'numeric',
+                                                                    hour12: true,
+                                                                    day: '2-digit',
+                                                                    month: '2-digit',
+                                                                    year: 'numeric'
+                                                                }).replace(',', '');
+                                                                const row = document.createElement('tr');
+                                                                row.innerHTML = `
+                                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${formattedDate}</td>
+                                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${entry.action}</td>
+                                                                `;
+                                                                historyList.appendChild(row);
+                                                            }
+                                                        });
+                                                    }
+                                                })
+                                                .catch((error) => {
+                                                    console.error('Error refreshing history:', error);
+                                                });
                                         }
                                     });
                                     clearInterval(interval);

@@ -27,15 +27,20 @@ function connectMQTT() {
             const el = document.getElementById("door-status");
             if (el) el.textContent = msg;
 
-            // Cập nhật flag isDoorOpen theo nội dung nhận được
-            if (msg.toLowerCase().includes("opened")) {
-                window.isDoorOpen = true;
-                console.log("🚪 Cửa đang MỞ");
-            } else if (msg.toLowerCase().includes("locked") || msg.toLowerCase().includes("closed")) {
-                window.isDoorOpen = false;
-                console.log("🔒 Cửa đang ĐÓNG");
-            } else {
-                console.warn("⚠️ Trạng thái không xác định:", msg);
+            // Cập nhật flag isDoorOpen và log hành động
+            const user = window.firebase && window.firebase.auth ? window.firebase.auth().currentUser : null;
+            if (user) {
+                if (msg.toLowerCase().includes("opened")) {
+                    window.isDoorOpen = true;
+                    console.log("🚪 Cửa đang MỞ");
+                    logUserAction(user.uid, 'Cửa được mở');
+                } else if (msg.toLowerCase().includes("locked") || msg.toLowerCase().includes("closed")) {
+                    window.isDoorOpen = false;
+                    console.log("🔒 Cửa đang ĐÓNG");
+                    logUserAction(user.uid, 'Cửa được đóng');
+                } else {
+                    console.warn("⚠️ Trạng thái không xác định:", msg);
+                }
             }
         }
     });
@@ -69,7 +74,23 @@ function connectMQTT() {
             }
         }
     });
+}
 
+// Function to log user actions to Firestore
+function logUserAction(userId, action) {
+    if (!window.firebase || !window.firebase.firestore) {
+        console.error('Firebase Firestore not initialized in logUserAction');
+        return;
+    }
+    const db = window.firebase.firestore();
+    return db.collection('users').doc(userId).update({
+        history: window.firebase.firestore.FieldValue.arrayUnion({
+            date: window.firebase.firestore.FieldValue.serverTimestamp(),
+            action: action
+        })
+    }).catch((error) => {
+        console.error('Error logging user action:', error.code, error.message);
+    });
 }
 
 window.connectMQTT = connectMQTT;

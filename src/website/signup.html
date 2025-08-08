@@ -19,12 +19,10 @@
             if (!firebase.apps.length) {
                 throw new Error('Firebase app not initialized in firebase.js');
             }
-            window.firebase = { 
-                auth: () => auth,
-                firestore: () => db,
-                storage: () => storage
-            };
+            // Ensure window.firebase is set for compatibility
+            window.firebase = firebase; // Use global firebase from compatibility SDK
             console.log('Firebase initialized successfully');
+            console.log('FieldValue available:', !!firebase.firestore.FieldValue);
             window.dispatchEvent(new Event('firebaseInitialized'));
         } catch (error) {
             console.error('Firebase module initialization failed:', error);
@@ -40,6 +38,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
+    <!-- Rest of your HTML remains unchanged -->
     <nav class="bg-gray-800 shadow-md">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
@@ -101,7 +100,7 @@
         // Wait for Firebase initialization and update UI
         window.addEventListener('firebaseInitialized', () => {
             console.log('firebaseInitialized event received');
-            if (!window.firebase || !window.firebase.auth) {
+            if (!firebase || !firebase.auth) {
                 const errorDiv = document.getElementById('error-message');
                 if (errorDiv) {
                     errorDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
@@ -112,7 +111,7 @@
                 return;
             }
 
-            window.firebase.auth().onAuthStateChanged((user) => {
+            firebase.auth().onAuthStateChanged((user) => {
                 try {
                     const signupLink = document.getElementById('signup-link');
                     const signinLink = document.getElementById('signin-link');
@@ -125,7 +124,7 @@
                         signinLink.classList.add('hidden');
                         accountMenu.classList.remove('hidden');
 
-                        window.firebase.firestore().collection('users').doc(user.uid).get()
+                        firebase.firestore().collection('users').doc(user.uid).get()
                             .then((doc) => {
                                 if (doc.exists && doc.data().avatarUrl) {
                                     accountImage.src = doc.data().avatarUrl;
@@ -194,7 +193,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             console.log('DOMContentLoaded fired');
             setTimeout(() => {
-                if (!window.firebase || !window.firebase.auth) {
+                if (!firebase || !firebase.auth) {
                     const errorDiv = document.getElementById('error-message');
                     if (errorDiv) {
                         errorDiv.textContent = 'Lỗi: Firebase khởi tạo thất bại sau thời gian chờ.';
