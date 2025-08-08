@@ -33,7 +33,6 @@
         }
     </script>
     <script defer src="js/mqtt.js"></script>
-    <script defer src="js/noti.js"></script>
     <script defer src="js/mylock.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -121,7 +120,17 @@
 
             <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
                 <h3 class="text-xl font-bold text-gray-200 mb-4">Lịch sử</h3>
-                <ul id="historyList" class="text-gray-400 space-y-2"></ul>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-700">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Ngày</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyList" class="divide-y divide-gray-700"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -143,6 +152,49 @@
                 welcome.classList.add('text-red-400');
                 console.error('Firebase initialization failed');
             }
+        }
+
+        // Function to format ISO date to readable format
+        function formatDate(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleString('en-GB', {
+                hour: 'numeric',
+                minute: 'numeric',
+                hour12: true,
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            }).replace(',', '');
+        }
+
+        // Function to populate history table
+        function populateHistoryTable(userId) {
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = ''; // Clear existing rows
+            window.firebase.firestore().collection('users').doc(userId).get()
+                .then((doc) => {
+                    if (doc.exists && doc.data().history && Array.isArray(doc.data().history)) {
+                        const history = doc.data().history.sort((a, b) => new Date(b.date) - new Date(a.date)); // Sort descending
+                        if (history.length === 0) {
+                            historyList.innerHTML = '<tr><td colspan="2" class="px-6 py-4 text-sm text-gray-400 text-center">Không có lịch sử hoạt động.</td></tr>';
+                            return;
+                        }
+                        history.forEach((entry) => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${formatDate(entry.date)}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${entry.action}</td>
+                            `;
+                            historyList.appendChild(row);
+                        });
+                    } else {
+                        historyList.innerHTML = '<tr><td colspan="2" class="px-6 py-4 text-sm text-gray-400 text-center">Không có lịch sử hoạt động.</td></tr>';
+                    }
+                })
+                .catch((error) => {
+                    console.error('Error loading history:', error);
+                    historyList.innerHTML = '<tr><td colspan="2" class="px-6 py-4 text-sm text-red-400 text-center">Lỗi khi tải lịch sử: ' + error.message + '</td></tr>';
+                });
         }
 
         // Wait for Firebase initialization
@@ -174,15 +226,17 @@
                             localStorage.setItem('isLoggedIn', 'true');
                             localStorage.setItem('userEmail', user.email);
 
-                            // Load user avatar from Firestore
+                            // Load user data and history
                             window.firebase.firestore().collection('users').doc(user.uid).get()
                                 .then((doc) => {
                                     if (doc.exists && doc.data().avatarUrl) {
                                         accountImage.src = doc.data().avatarUrl;
                                     }
+                                    // Populate history table
+                                    populateHistoryTable(user.uid);
                                 })
                                 .catch((error) => {
-                                    console.error('Error loading avatar:', error);
+                                    console.error('Error loading user data:', error);
                                 });
 
                             // Set up dropdown menu
@@ -234,6 +288,8 @@
                                             if (doorStatus) {
                                                 doorStatus.textContent = msg;
                                             }
+                                            // Refresh history on door status change
+                                            populateHistoryTable(user.uid);
                                         }
                                     });
                                     clearInterval(interval);

@@ -17,12 +17,10 @@
             if (!firebase.apps.length) {
                 throw new Error('Firebase app not initialized in firebase.js');
             }
-            window.firebase = { 
-                auth: () => auth,
-                firestore: () => db,
-                storage: () => storage
-            };
+            // Use global firebase from compatibility SDK
+            window.firebase = firebase;
             console.log('Firebase initialized successfully');
+            console.log('FieldValue available:', !!firebase.firestore.FieldValue);
             window.dispatchEvent(new Event('firebaseInitialized'));
         } catch (error) {
             console.error('Firebase module initialization failed:', error);
@@ -150,7 +148,8 @@
     <script>
         // Wait for Firebase initialization
         window.addEventListener('firebaseInitialized', () => {
-            if (!window.firebase || !window.firebase.auth) {
+            console.log('firebaseInitialized event received');
+            if (!firebase || !firebase.auth) {
                 const errorDiv = document.getElementById('avatar-error');
                 if (errorDiv) {
                     errorDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
@@ -160,7 +159,7 @@
                 return;
             }
 
-            window.firebase.auth().onAuthStateChanged((user) => {
+            firebase.auth().onAuthStateChanged((user) => {
                 try {
                     const signupLink = document.getElementById('signup-link');
                     const signinLink = document.getElementById('signin-link');
@@ -173,7 +172,7 @@
                         signinLink.classList.add('hidden');
                         accountMenu.classList.remove('hidden');
 
-                        window.firebase.firestore().collection('users').doc(user.uid).get()
+                        firebase.firestore().collection('users').doc(user.uid).get()
                             .then((doc) => {
                                 if (doc.exists) {
                                     if (doc.data().avatarUrl) {
@@ -249,7 +248,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             console.log('DOMContentLoaded');
             setTimeout(() => {
-                if (!window.firebase || !window.firebase.auth) {
+                if (!firebase || !firebase.auth) {
                     const errorMessageDiv = document.getElementById('avatar-error');
                     if (errorMessageDiv) {
                         errorMessageDiv.textContent = 'Lỗi: Firebase khởi tạo thất bại sau thời gian chờ.';
