@@ -3,13 +3,13 @@
 // firebase-app-compat.js, firebase-auth-compat.js, firebase-firestore-compat.js, firebase-storage-compat.js
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAT-c-aYKmdicXZjNk_E1Q7xUsH18C-UHs",
-  authDomain: "sdls-15cb4.firebaseapp.com",
-  projectId: "sdls-15cb4",
-  storageBucket: "sdls-15cb4.firebasestorage.app",
-  messagingSenderId: "168653757922",
-  appId: "1:168653757922:web:fc32614c2b91bdada0edbb",
-  measurementId: "G-PF8HFXFMQR"
+  apiKey: "AIzaSyBJL4_QZhwMQ9lvGmRClid44-zkxhBoTKw",
+  authDomain: "smart-door-lock-system-b9897.firebaseapp.com",
+  projectId: "smart-door-lock-system-b9897",
+  storageBucket: "smart-door-lock-system-b9897.firebasestorage.app",
+  messagingSenderId: "944814146140",
+  appId: "1:944814146140:web:8f01ba9d1a1281b1e6dc99",
+  measurementId: "G-C6BHJ1T7ZQ"
 };
 
 
