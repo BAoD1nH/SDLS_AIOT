@@ -31,9 +31,9 @@ const int maxFailedAttempts = 3;
 unsigned long lastUnlockTime = 0;
 
 //----------------------------------------------------  WIFI - MQTT CONFIG ----------------------------------------------------//
-const char* ssid = "Gia Bao";
-const char* password = "28092004";
-const char* mqttServer = "192.168.1.7";
+const char* ssid = "knaD";
+const char* password = "dangdeptrai";
+const char* mqttServer = "192.168.160.151";
 const int mqttPort = 1883;
 const char* mqttUser = "";
 const char* mqttPassword = "";
