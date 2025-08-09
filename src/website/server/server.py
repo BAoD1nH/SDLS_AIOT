@@ -6,6 +6,12 @@ from pathlib import Path
 from json import dumps, loads
 from PIL import Image
 import os, time, mimetypes
+from pathlib import Path
+import subprocess, sys
+
+# Đường dẫn thư mục dự án & script
+BASE_DIR = Path(__file__).parent.resolve()
+FACE_SCRIPT = BASE_DIR / "face_recognition.py"
 
 app = Flask(__name__)
 CORS(app)  # Dev: mở CORS cho frontend (localhost/127.0.0.1)
@@ -16,6 +22,57 @@ app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 # ====== 1) ESP32-CAM: GIỮ NGUYÊN ENDPOINT nhưng lưu vào upload-esp32 ======
 UPLOAD_ESP32_DIR = Path(__file__).parent / "upload-esp32"
 UPLOAD_ESP32_DIR.mkdir(parents=True, exist_ok=True)
+
+RESULTS_DIR = Path(__file__).parent / "verification_results"
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+@app.route("/run-face-recognition", methods=["POST"])
+def run_face_recognition():
+	"""
+	Chạy face_recognition.py đồng bộ và trả stdout/stderr về cho frontend.
+	Yêu cầu: file upload-esp32/frame.jpg đã tồn tại (được ESP32 upload).
+	"""
+	# Kiểm tra file probe có sẵn chưa (tránh chạy vô ích)
+	probe = BASE_DIR / "upload-esp32" / "frame.jpg"
+	if not probe.exists():
+		return jsonify({
+			"success": False,
+			"error": "Missing probe image: upload-esp32/frame.jpg"
+		}), 409
+
+	if not FACE_SCRIPT.exists():
+		return jsonify({"success": False, "error": f"Not found: {FACE_SCRIPT.name}"}), 500
+
+	try:
+		# Dùng đúng executable hiện tại (python/python3) và set cwd để script tìm đúng thư mục
+		proc = subprocess.run(
+			[sys.executable, str(FACE_SCRIPT)],
+			cwd=str(BASE_DIR),
+			capture_output=True,
+			text=True,
+			timeout=120  # điều chỉnh nếu cần
+		)
+		ok = (proc.returncode == 0)
+		return jsonify({
+			"success": ok,
+			"returncode": proc.returncode,
+			"stdout": proc.stdout,
+			"stderr": proc.stderr
+		}), (200 if ok else 500)
+	except subprocess.TimeoutExpired:
+		return jsonify({"success": False, "error": "Timeout running face_recognition.py"}), 504
+	except Exception as e:
+		return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/verification_results/<path:subpath>")
+def serve_verification_results(subpath):
+    base = RESULTS_DIR.resolve()
+    full = (base / subpath).resolve()
+    if not str(full).startswith(str(base)):
+        abort(403)
+    if not full.exists():
+        abort(404)
+    return send_from_directory(base, subpath, mimetype="application/json")
 
 @app.route("/upload", methods=["POST"])
 def upload_frame():
@@ -228,6 +285,32 @@ def list_user_images(user_id: str):
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"}), 200
+
+@app.route("/api/auth-logs", methods=["GET"])
+def list_auth_logs():
+    out = []
+    for p in RESULTS_DIR.glob("*.json"):
+        try:
+            data = loads(p.read_text(encoding="utf-8"))
+            # fallback nếu thiếu ts: dùng mtime
+            data["ts"] = int(data.get("ts", p.stat().st_mtime))
+            out.append(data)
+        except Exception:
+            pass
+    out.sort(key=lambda x: x.get("ts", 0), reverse=True)
+    return jsonify(out), 200
+
+@app.route("/upload-esp32/<path:subpath>")
+def serve_esp32(subpath):
+    base = UPLOAD_ESP32_DIR.resolve()
+    full = (base / subpath).resolve()
+    if not str(full).startswith(str(base)):
+        abort(403)
+    if not full.exists():
+        abort(404)
+    mime, _ = mimetypes.guess_type(str(full))
+    return send_from_directory(base, subpath, mimetype=mime or "application/octet-stream")
+
 
 if __name__ == "__main__":
     # Chạy: pip install flask flask-cors pillow

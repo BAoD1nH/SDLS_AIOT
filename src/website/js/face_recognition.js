@@ -9,7 +9,9 @@
 const API_BASE = "http://localhost:8000";           // đổi nếu server chạy chỗ khác
 const ENDPOINT_UPLOAD = `${API_BASE}/upload-face`;
 const ENDPOINT_USERS  = `${API_BASE}/api/users`;
-
+// const ENDPOINT_VERIFICATIONS = `${API_BASE}/api/verifications`;
+const ENDPOINT_VERIFICATIONS = `${API_BASE}/api/auth-logs`; // đúng với server.py
+const ENDPOINT_VERIF_INDEX   = `${API_BASE}/verification_results/index.json`; // fallback đúng origin
 // ======================== Tiện ích UI ========================
 function $(sel) { return document.querySelector(sel); }
 
@@ -20,6 +22,16 @@ function setStatus(el, msg, type = "info") {
   if (type === "success") el.classList.add("text-green-400");
   else if (type === "error") el.classList.add("text-red-400");
 }
+
+// Đặt gần đầu file
+window.seenEvents = window.seenEvents || new Set();
+function eventKey(it) {
+	const uid = it.event_id || it.user_id || it.userId || "";
+	const dist = Number.isFinite(Number(it.distance)) ? Number(it.distance).toFixed(4) : "";
+	const ts = it.ts ?? it.timestamp ?? "";
+	return `${uid}|${dist}|${ts}`;
+}
+
 
 // ======================== Upload / Enroll =====================
 (function initEnroll() {
@@ -112,40 +124,185 @@ async function loadUsers() {
   }
 }
 
+// ======================== Load danh sách Xác thực =================
+async function loadVerifications() {
+	const list = document.querySelector("#verificationList");
+	const banner = document.querySelector("#authResult");
+	if (!list) return;
+
+	const fmtTime = (ts) => {
+		if (typeof ts === "number" && ts < 1e12) ts *= 1000;
+		return new Date(ts || Date.now()).toLocaleString();
+	};
+	const setBanner = (text, ok) => {
+		if (!banner) return;
+		banner.classList.remove("text-gray-400", "text-green-400", "text-red-400");
+		banner.classList.add(ok ? "text-green-400" : "text-red-400");
+		banner.textContent = text;
+	};
+
+	list.innerHTML = "";
+	try {
+		// 1) thử API
+		let items;
+		try {
+			const res = await fetch(ENDPOINT_VERIFICATIONS, { method: "GET" });
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			items = await res.json();
+			if (!Array.isArray(items)) throw new Error("Response is not an array");
+		} catch (e) {
+			// 2) fallback: index.json do script tạo trong RESULTS_DIR
+			const idx = await fetch(ENDPOINT_VERIF_INDEX, { method: "GET" });
+			if (!idx.ok) throw new Error(`HTTP ${idx.status} (index.json)`);
+			const files = await idx.json(); // ["<file1>.json", ...]
+			const all = await Promise.all(
+				files.map(f => fetch(`${API_BASE}/verification_results/${f}`)
+					.then(r => { if (!r.ok) throw new Error(`HTTP ${r.status} for ${f}`); return r.json(); }))
+			);
+			items = all.flatMap(x => Array.isArray(x) ? x : [x]);
+		}
+
+		if (!items.length) {
+			list.innerHTML = `<li class="text-gray-400">Chưa có kết quả xác thực.</li>`;
+			if (banner) {
+				banner.classList.remove("text-green-400", "text-red-400");
+				banner.classList.add("text-gray-400");
+				banner.textContent = "Chưa có kết quả.";
+			}
+			return;
+		}
+
+		items.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+		for (const it of items) {
+      const key = eventKey(it);
+      if (window.seenEvents.has(key)) continue;   // đã có -> bỏ qua
+      window.seenEvents.add(key);
+
+			const ok = it.status === "ok" || it.result === "success";
+			const distNum = Number(it.distance);
+			const dist = Number.isFinite(distNum) ? distNum.toFixed(4) : "";
+			const userId = it.user_id ?? it.userId ?? "";
+			const t = fmtTime(it.ts ?? it.timestamp);
+
+			const li = document.createElement("li");
+			li.classList.add("whitespace-pre-wrap", ok ? "text-green-400" : "text-red-400");
+			li.textContent = `${ok ? "SUCCESS" : "FAILED"} | User ${userId} | distance=${dist} | ${t}`;
+			list.appendChild(li);
+		}
+
+		const newest = items[0];
+		const ok = newest.status === "ok" || newest.result === "success";
+		const dNum = Number(newest.distance);
+		const d = Number.isFinite(dNum) ? dNum.toFixed(4) : "";
+		setBanner(
+			ok ? `Authentication successful${d ? ` (distance: ${d})` : ""}`
+			   : `Authentication failed${d ? ` (distance: ${d})` : ""}`,
+			ok
+		);
+	} catch (err) {
+		console.error("Lỗi tải danh sách xác thực:", err);
+		list.innerHTML = `<li class="text-red-400">Không thể tải dữ liệu xác thực.</li>`;
+		if (banner) {
+			banner.classList.remove("text-green-400");
+			banner.classList.add("text-red-400");
+			banner.textContent = "Không thể tải dữ liệu xác thực.";
+		}
+	}
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+	const btn = document.getElementById("runFaceRecogBtn");
+	const out = document.getElementById("faceRecogOutput");
+	if (!btn) return;
+
+	btn.addEventListener("click", async () => {
+		btn.disabled = true;
+		btn.textContent = "Đang chạy...";
+		if (out) out.textContent = "";
+		try {
+			const res = await fetch(`${API_BASE}/run-face-recognition`, { method: "POST" });
+			const data = await res.json();
+			if (data.success) {
+				out.textContent = (data.stdout || "").trim() || "Đã chạy thành công.";
+			} else {
+				const msg = data.error || data.stderr || "Lỗi không xác định.";
+				out.textContent = `Lỗi: ${msg}`;
+			}
+			// Sau khi chạy xong, refresh danh sách xác thực
+			await loadVerifications();
+		} catch (e) {
+			out.textContent = "Không thể gọi API /run-face-recognition.";
+		} finally {
+			btn.disabled = false;
+			btn.textContent = "Chạy Face Recognition";
+		}
+	});
+});
+
+
+
 // Tải danh sách ngay khi trang load
 window.addEventListener("DOMContentLoaded", loadUsers);
+window.addEventListener("DOMContentLoaded", loadVerifications);
 
-// ======================== MQTT (nếu dùng) =====================
+
+
+/// ======================== MQTT (subscribe smartlock/verify) =====================
 (function initMQTTListener() {
-  const list = $("#verificationList");
+  const list = document.querySelector("#verificationList");
+  const banner = document.querySelector("#authResult");
   if (!list) return;
 
-  // Đợi mqttClient do js/mqtt.js tạo sẵn
-  function attach() {
-    if (window.mqttClient && mqttClient.connected) {
-      try {
-        mqttClient.subscribe("face/verified", (err) => {
-          if (err) console.error("Không thể subscribe topic face/verified:", err);
-        });
-
-        mqttClient.on("message", (topic, message) => {
-          if (topic === "face/verified") {
-            try {
-              const data = JSON.parse(message.toString());
-              const li = document.createElement("li");
-              li.textContent = `${data.userName} (UserID: ${data.userId}) xác thực lúc ${new Date().toLocaleTimeString()}`;
-              list.prepend(li);
-            } catch (e) {
-              console.error("Không thể parse MQTT message:", e);
-            }
-          }
-        });
-      } catch (e) {
-        console.error("MQTT attach error:", e);
-      }
-    } else {
-      setTimeout(attach, 500);
-    }
+  function fmtTime(ts) {
+    if (typeof ts === "number" && ts < 1e12) ts *= 1000;
+    return new Date(ts || Date.now()).toLocaleString();
   }
+
+  function setBanner(text, ok) {
+    if (!banner) return;
+    banner.classList.remove("text-gray-400", "text-green-400", "text-red-400");
+    banner.classList.add(ok ? "text-green-400" : "text-red-400");
+    banner.textContent = text;
+  }
+
+  // Chờ mqtt.js gọi connectMQTT() và thiết lập window.mqttClient
+  function attach() {
+    if (!window.mqttClient) return setTimeout(attach, 300);
+
+    // Đăng ký subscribe khi MQTT thực sự connect
+    window.mqttClient.on("connect", () => {
+      const TOPIC = "smartlock/verify";
+      window.mqttClient.subscribe(TOPIC, (err) => {
+        if (err) console.error("Subscribe error:", err);
+      });
+    });
+
+    // Nhận message
+    window.mqttClient.on("message", (topic, buf) => {
+      if (topic !== "smartlock/verify") return;
+
+      let data;
+      try { data = JSON.parse(buf.toString()); }
+      catch (e) { console.error("Bad JSON:", e, buf.toString()); return; }
+
+      const ok = data.status === "ok";
+      const distNum = Number(data.distance);
+      const dist = Number.isFinite(distNum) ? distNum.toFixed(4) : "";
+      const userId = data.user_id ?? data.userId ?? "";
+      const timeStr = fmtTime(data.ts ?? data.timestamp);
+
+      setBanner(
+        ok ? `Authentication successful (distance: ${dist})`
+           : `Authentication failed${dist ? ` (distance: ${dist})` : ""}`,
+        ok
+      );
+
+      const li = document.createElement("li");
+      li.classList.add("whitespace-pre-wrap", ok ? "text-green-400" : "text-red-400");
+      li.textContent = `${ok ? "SUCCESS" : "FAILED"} | User ${userId} | distance=${dist} | ${timeStr}`;
+      list.prepend(li);
+    });
+  }
+
   attach();
 })();
