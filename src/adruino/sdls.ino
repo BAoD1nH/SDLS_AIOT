@@ -401,31 +401,32 @@ void setupPassword() {
   while (true) {
     char key = keypad.getKey();
     if (key) {
-      if (key == '*') {  // Xác nhận
-        if (inputString.length() > 0) {
-          currentLockPassword = inputString;
-          lcdShowSetupSuccess();   // "Setup successfully"
-          Serial.print("[SETUP] New password set: ");
-          Serial.println(currentLockPassword);
-          delay(2000);
-          break;
-        } else {
-          lcdShowMessage("Password Empty", "Try Again");
-          inputString = "";
-          delay(2000);
-          lcd.clear();
-          lcd.print("Set New Password");
-        }
-      } else if (key == '#') {  // Xóa nhập
-        inputString = "";
-        lcdShowMessage("Clear", "");
-        delay(500);
-        lcd.clear();
-        lcd.print("Set New Password");
-      } else {
-        inputString += key;
-        lcdShowMessage("New Password:", inputString);
-      }
+			bool exitFlow = false;
+			if (handleGlobalKey(key, inputString, exitFlow)) {
+				if (exitFlow) break;
+				lcd.clear();
+				lcd.print("Set New Password");
+				continue;
+			}
+			if (key == '*') {  // Xác nhận
+				if (inputString.length() > 0) {
+					currentLockPassword = inputString;
+					lcdShowSetupSuccess();   // "Setup successfully"
+					Serial.print("[SETUP] New password set: ");
+					Serial.println(currentLockPassword);
+					delay(2000);
+					break;
+				} else {
+					lcdShowMessage("Password Empty", "Try Again");
+					inputString = "";
+					delay(2000);
+					lcd.clear();
+					lcd.print("Set New Password");
+				}
+			} else {
+				inputString += key;
+				lcdShowMessage("New Password:", inputString);
+			}
     }
   }
 }
@@ -507,6 +508,13 @@ bool check2FASecurity() {
 		char key = keypad.getKey();
 
 		if (key) {
+			bool exitFlow = false;
+			if (handleGlobalKey(key, userInputOTP, exitFlow)) {
+				if (exitFlow) return false;
+				lcd.clear();
+				lcd.print("Enter OTP:");
+				continue;
+			}
 			if (key == '*') {
 				if (userInputOTP == otpFromWeb) {
 					Serial.println("[2FA] OTP correct!");
@@ -517,12 +525,6 @@ bool check2FASecurity() {
 					otpReceived = false;  // ✅ Reset flag
 					return false;
 				}
-			} else if (key == '#') {
-				userInputOTP = "";
-				lcdShowMessage("OTP Cleared", "");
-				delay(500);
-				lcd.clear();
-				lcd.print("Enter OTP:");
 			} else {
 				userInputOTP += key;
 				lcdShowMessage("OTP:", userInputOTP);
@@ -645,21 +647,26 @@ void handlePinFlow() {
 
 	char key = keypad.getKey();
 	if (key) {
-		if (key == '*') {
-			bool success = checkPassword();  // Gọi và lưu kết quả
 
-			if (success) {
-				// Đúng pass → mở cửa → kết thúc flow, chờ auto lock
+		bool exitFlow = false;
+		if (handleGlobalKey(key, inputString, exitFlow)) {
+			if (exitFlow) {
 				initialized = false;
 				enablePinFlow = false;
 			} else {
-				// Sai → reset để cho nhập lại
+				lcdShowEnterPassword();
+			}
+			return;
+		}
+		if (key == '*') {
+			bool success = checkPassword();  // Gọi và lưu kết quả
+			if (success) {
+				initialized = false;
+				enablePinFlow = false;
+			} else {
 				inputString = "";
 				lcdShowEnterPassword();
 			}
-		} else if (key == '#') {
-			inputString = "";
-			lcdShowEnterPassword();
 		} else {
 			inputString += key;
 			lcdShowMessage("Input:", inputString);
