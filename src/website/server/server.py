@@ -8,6 +8,10 @@ from PIL import Image
 import os, time, mimetypes
 from pathlib import Path
 import subprocess, sys
+import threading
+
+RUNNING = False
+RUN_LOCK = threading.Lock()
 
 # Đường dẫn thư mục dự án & script
 BASE_DIR = Path(__file__).parent.resolve()
@@ -25,6 +29,31 @@ UPLOAD_ESP32_DIR.mkdir(parents=True, exist_ok=True)
 
 RESULTS_DIR = Path(__file__).parent / "verification_results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+def _spawn_recognition():
+    """Chạy face_recognition.py ở nền, tránh chồng lấn lần chạy."""
+    global RUNNING
+    with RUN_LOCK:
+        if RUNNING:
+            return False  # đang chạy, bỏ qua
+        RUNNING = True
+
+    def _worker():
+        global RUNNING
+        try:
+            # chạy bằng đúng interpreter hiện tại + đúng thư mục dự án
+            subprocess.run(
+                [sys.executable, str(FACE_SCRIPT)],
+                cwd=str(BASE_DIR),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False
+            )
+        finally:
+            RUNNING = False
+
+    threading.Thread(target=_worker, daemon=True).start()
+    return True
 
 @app.route("/run-face-recognition", methods=["POST"])
 def run_face_recognition():
@@ -76,20 +105,19 @@ def serve_verification_results(subpath):
 
 @app.route("/upload", methods=["POST"])
 def upload_frame():
-    """
-    ESP32-CAM post: form-data { meta, file }
-    Lưu file thành upload-esp32/frame.jpg
-    """
     if "file" not in request.files:
-        return "missing file", 400
-    f = request.files["file"]
+        return jsonify({"success": False, "error": "missing file"}), 400
 
     save_path = UPLOAD_ESP32_DIR / "frame.jpg"
-    f.save(save_path)
+    request.files["file"].save(save_path)
 
-    meta = request.form.get("meta")
-    print(f"Meta: {meta}, Saved {save_path}")
-    return "ok", 200
+    # đảm bảo file vừa lưu tồn tại
+    if not save_path.exists():
+        return jsonify({"success": False, "error": "save failed"}), 500
+
+    started = _spawn_recognition()
+    return jsonify({"success": True, "started": started}), 200
+
 
 # ====== 2) Web upload ảnh theo userId vào local ======
 # CHÚ Ý: đổi gốc lưu về 'upload' (không phải 'uploads/faces')

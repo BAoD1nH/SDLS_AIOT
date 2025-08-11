@@ -12,6 +12,7 @@ const ENDPOINT_USERS  = `${API_BASE}/api/users`;
 // const ENDPOINT_VERIFICATIONS = `${API_BASE}/api/verifications`;
 const ENDPOINT_VERIFICATIONS = `${API_BASE}/api/auth-logs`; // đúng với server.py
 const ENDPOINT_VERIF_INDEX   = `${API_BASE}/verification_results/index.json`; // fallback đúng origin
+const ENDPOINT_LATEST = `${API_BASE}/verification_results/latest.json`;
 // ======================== Tiện ích UI ========================
 function $(sel) { return document.querySelector(sel); }
 
@@ -90,6 +91,19 @@ function eventKey(it) {
 })();
 
 // ======================== Load danh sách Users =================
+
+function setEsp32Status(ts) {
+  const el = document.querySelector("#esp32Status");
+  if (!el) return;
+  let ms = ts;
+  if (typeof ts === "number" && ts < 1e12) ms = ts * 1000; // ts tính bằng giây -> ms
+  if (!ms) ms = Date.now();
+  el.textContent = `Đã nhận kết quả từ ESP32-CAM lúc ${new Date(ms).toLocaleString()}`;
+  el.classList.remove("text-gray-400");
+  el.classList.add("text-green-400");
+}
+
+
 async function loadUsers() {
   const tbody = $("#userList");
   if (!tbody) return;
@@ -199,6 +213,9 @@ async function loadVerifications() {
 			   : `Authentication failed${d ? ` (distance: ${d})` : ""}`,
 			ok
 		);
+
+    setEsp32Status(newest.ts ?? newest.timestamp);
+
 	} catch (err) {
 		console.error("Lỗi tải danh sách xác thực:", err);
 		list.innerHTML = `<li class="text-red-400">Không thể tải dữ liệu xác thực.</li>`;
@@ -306,3 +323,55 @@ window.addEventListener("DOMContentLoaded", loadVerifications);
 
   attach();
 })();
+
+async function pollLatestResult() {
+  try {
+    // DÙNG URL TUYỆT ĐỐI TỚI FLASK
+    const res = await fetch(ENDPOINT_LATEST, { cache: "no-store" });
+    if (!res.ok) return;
+    const it = await res.json();
+
+    // Chuẩn hoá dữ liệu
+    const ok = it.status === "ok" || it.result === "success";
+    const distNum = Number(it.distance);
+    const dist = Number.isFinite(distNum) ? distNum.toFixed(4) : "";
+    const userId = it.user_id ?? it.userId ?? "";
+    const ts = it.ts ?? it.timestamp ?? Date.now();
+
+    // CHỐNG TRÙNG (tránh trùng với MQTT / loadVerifications)
+    const key = eventKey({ user_id: userId, distance: dist, ts });
+    if (window.seenEvents.has(key)) return;
+    window.seenEvents.add(key);
+
+    // Banner
+    const banner = document.querySelector("#authResult");
+    if (banner) {
+      banner.classList.remove("text-gray-400", "text-green-400", "text-red-400");
+      banner.classList.add(ok ? "text-green-400" : "text-red-400");
+      banner.textContent = ok
+        ? `Authentication successful${dist ? ` (distance: ${dist})` : ""}`
+        : `Authentication failed${dist ? ` (distance: ${dist})` : ""}`;
+    }
+
+    // Danh sách
+    const list = document.querySelector("#verificationList");
+    if (list) {
+      const li = document.createElement("li");
+      li.classList.add("whitespace-pre-wrap", ok ? "text-green-400" : "text-red-400");
+      const timeStr = (typeof ts === "number" && ts < 1e12)
+        ? new Date(ts * 1000).toLocaleString()
+        : new Date(ts).toLocaleString();
+      li.textContent = `${ok ? "SUCCESS" : "FAILED"} | User ${userId} | distance=${dist} | ${timeStr}`;
+      list.prepend(li);
+    }
+
+    // Dòng trạng thái ESP32
+    setEsp32Status(ts);
+  } catch (err) {
+    console.error("Polling error:", err);
+  }
+}
+
+// Gọi mỗi 2 giây (nếu đã dùng MQTT realtime thì có thể giảm/tắt polling)
+setInterval(pollLatestResult, 2000);
+

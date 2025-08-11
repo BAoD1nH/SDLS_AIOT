@@ -4,10 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MyLock Dashboard</title>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <!-- <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script> -->
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
     <script type="module">
         // Import at top level
         import { auth, db, storage } from './js/firebase.js';
@@ -75,22 +79,30 @@
                     <div class="space-y-4">
                         <div>
                             <label for="oldPass" class="sr-only">Mật khẩu cũ</label>
-                            <input id="oldPass" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Mật khẩu cũ">
-                        </div>
-                        <div>
-                            <label for="confirmOld" class="sr-only">Xác nhận mật khẩu cũ</label>
-                            <input id="confirmOld" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Xác nhận mật khẩu cũ">
+                            <input id="oldPass" type="password" required
+                                class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
+                                placeholder="Mật khẩu cũ">
                         </div>
                         <div>
                             <label for="newPass" class="sr-only">Mật khẩu mới</label>
-                            <input id="newPass" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Mật khẩu mới">
+                            <input id="newPass" type="password" required
+                                class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
+                                placeholder="Mật khẩu mới">
                         </div>
-                        <button onclick="changePassword()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                        <div>
+                            <label for="confirmNew" class="sr-only">Xác nhận mật khẩu mới</label>
+                            <input id="confirmNew" type="password" required
+                                class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
+                                placeholder="Xác nhận mật khẩu mới">
+                        </div>
+                        <button onclick="changePassword()"
+                            class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
                             Cập nhật mật khẩu khóa
                         </button>
                         <p id="password-error" class="mt-2 text-sm text-red-400 hidden"></p>
                     </div>
                 </div>
+
 
                 <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
                     <h3 class="text-xl font-bold text-gray-200 mb-4">Điều khiển khóa</h3>
