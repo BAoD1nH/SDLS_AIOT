@@ -121,15 +121,36 @@ async function loadUsers() {
       return;
     }
 
-    users.forEach(u => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td class="px-4 py-2">${u.userId ?? ""}</td>
-        <td class="px-4 py-2">${u.userName ?? ""}</td>
-        <td class="px-4 py-2">${u.timestamp ? new Date(u.timestamp).toLocaleString() : ""}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+  users.forEach(u => {
+    const thumb = u.imageUrl
+      ? `${u.imageUrl}?t=${Date.now()}`
+      : "https://via.placeholder.com/64?text=No+Img";
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="px-4 py-2">${u.userId ?? ""}</td>
+      <td class="px-4 py-2">${u.userName ?? ""}</td>
+      <td class="px-4 py-2">${u.timestamp ? new Date(u.timestamp).toLocaleString() : ""}</td>
+      <td class="px-4 py-2">
+        ${u.imageUrl
+          ? `<a href="${u.imageUrl}" target="_blank" rel="noopener">
+              <img src="${thumb}" alt="face ${u.userId}"
+                    class="h-12 w-12 rounded object-cover border border-gray-600"
+                    loading="lazy"
+                    onerror="this.src='https://via.placeholder.com/64?text=No+Img'">
+            </a>`
+          : `<img src="${thumb}" class="h-12 w-12 rounded object-cover border border-gray-600" loading="lazy">`
+        }
+      </td>
+      <td class="px-4 py-2">
+        <button class="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+                onclick="openGallery('${u.userId}','${(u.userName||'').replace(/'/g, "\\'")}')">
+          Xem ảnh
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
   } catch (err) {
     console.error("Lỗi tải danh sách người dùng:", err);
     const tr = document.createElement("tr");
@@ -371,6 +392,75 @@ async function pollLatestResult() {
     console.error("Polling error:", err);
   }
 }
+
+
+window.openGallery = async function(userId, userName = "") {
+  const modal = document.getElementById("galleryModal");
+  const grid  = document.getElementById("galleryGrid");
+  const empty = document.getElementById("galleryEmpty");
+  const title = document.getElementById("galleryTitle");
+  if (!modal || !grid || !empty) return;
+
+  title.textContent = `Ảnh của ${userName || ("User " + userId)}`;
+  grid.innerHTML = "";
+  empty.classList.add("hidden");
+
+  try {
+    const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(userId)}/images`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const imgs = await res.json();
+
+    if (!Array.isArray(imgs) || imgs.length === 0) {
+      empty.classList.remove("hidden");
+    } else {
+      imgs.forEach(it => {
+        const url = it.file_url || it.file_path;
+        const a = document.createElement("a");
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.className = "block";                         // để ảnh chiếm nguyên cột
+
+        // 🔧 CHỈ SỬA KHỐI NÀY
+        a.innerHTML = `
+          <img src="${url}?t=${Date.now()}" loading="lazy"
+               class="block max-w-full h-auto max-h-[70vh] object-contain rounded-lg border border-gray-700 bg-gray-700"
+               onerror="this.src='https://via.placeholder.com/300x200?text=No+Img'">
+          <div class="text-xs text-gray-400 mt-1">${it.index ?? ""}</div>
+        `;
+        grid.appendChild(a);
+      });
+    }
+
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+  } catch (e) {
+    console.error("Gallery error:", e);
+    empty.textContent = "Không thể tải ảnh.";
+    empty.classList.remove("hidden");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+  }
+};
+
+
+window.closeGallery = function() {
+  const modal = document.getElementById("galleryModal");
+  if (modal) modal.classList.add("hidden");
+};
+
+// đóng khi click ra nền hoặc nhấn ESC
+(function () {
+  const modal = document.getElementById("galleryModal");
+  if (!modal) return;
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeGallery();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeGallery();
+  });
+})();
+
 
 // Gọi mỗi 2 giây (nếu đã dùng MQTT realtime thì có thể giảm/tắt polling)
 setInterval(pollLatestResult, 2000);
