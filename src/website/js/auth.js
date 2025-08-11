@@ -157,12 +157,11 @@ function signIn() {
         return;
     }
 
-    withFirebaseInitialized(() => {
-        return firebase.auth().signInWithEmailAndPassword(email, password)
-            .then((userCredential) => {
-                const user = userCredential.user;
-                if (user.emailVerified) {
-                    localStorage.setItem('isLoggedIn', 'true');
+    return firebase.auth().signInWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+            const user = userCredential.user;
+            if (user.emailVerified) {
+                localStorage.setItem('isLoggedIn', 'true');
                     localStorage.setItem('userEmail', user.email);
                     // Log sign-in action
                     return logUserAction(user.uid, 'Đăng nhập').then(() => {
@@ -177,45 +176,36 @@ function signIn() {
                 console.error('Sign-in error:', error.code, error.message);
                 showMessage(errorMessageDiv, 'Lỗi đăng nhập: ' + error.message, false);
             });
-    }).catch((error) => {
-        console.error('Firebase initialization error in signIn:', error);
-        showMessage(errorMessageDiv, 'Lỗi: Firebase chưa được khởi tạo.', false);
-    });
 }
 
 function logout() {
-    withFirebaseInitialized(() => {
-        const user = firebase.auth().currentUser;
-        if (user) {
-            // Log logout action
-            return logUserAction(user.uid, 'Đăng xuất').then(() => {
-                return firebase.auth().signOut()
-                    .then(() => {
-                        console.log('User signed out');
-                        alert('Đã đăng xuất thành công!');
-                        localStorage.removeItem('isLoggedIn');
-                        localStorage.removeItem('userEmail');
-                        window.location.href = 'signin.html';
-                    })
-                    .catch((error) => {
-                        console.error('Logout error:', error.code, error.message);
-                        alert('Lỗi: ' + error.message);
-                    });
-            }).catch((error) => {
-                console.error('Error logging logout action:', error);
-                alert('Lỗi: Không thể ghi lịch sử đăng xuất.');
-            });
-        } else {
-            console.log('No user to log out');
-            alert('Đã đăng xuất thành công!');
-            localStorage.removeItem('isLoggedIn');
-            localStorage.removeItem('userEmail');
-            window.location.href = 'signin.html';
-        }
-    }).catch((error) => {
-        console.error('Firebase initialization error in logout:', error);
-        alert('Lỗi: Firebase chưa được khởi tạo.');
-    });
+    const user = firebase.auth().currentUser;
+    if (user) {
+        // Log logout action
+        return logUserAction(user.uid, 'Đăng xuất').then(() => {
+            return firebase.auth().signOut()
+                .then(() => {
+                    console.log('User signed out');
+                    alert('Đã đăng xuất thành công!');
+                    localStorage.removeItem('isLoggedIn');
+                    localStorage.removeItem('userEmail');
+                    window.location.href = 'signin.html';
+                })
+                .catch((error) => {
+                    console.error('Logout error:', error.code, error.message);
+                    alert('Lỗi: ' + error.message);
+                });
+        }).catch((error) => {
+            console.error('Error logging logout action:', error);
+            alert('Lỗi: Không thể ghi lịch sử đăng xuất.');
+        });
+    } else {
+        console.log('No user to log out');
+        alert('Đã đăng xuất thành công!');
+        localStorage.removeItem('isLoggedIn');
+        localStorage.removeItem('userEmail');
+        window.location.href = 'signin.html';
+    }
 }
 
 function uploadAvatar() {
