@@ -118,35 +118,79 @@ function connectMQTT() {
 			}
 
 			case "door/otp_request": {
-				// msg có thể là "pin" / "face" tuỳ phía ESP32 gửi; không bắt buộc dùng.
-				console.log("ESP32 yêu cầu OTP cho flow:", msg);
+				// ví dụ ESP32 gửi "pin" hoặc "face"
+				const flow = (msg || "").toString().toLowerCase();
+				console.log("ESP32 yêu cầu OTP cho flow:", flow);
 
+				// 1) Không sinh OTP cho FaceID
+				if (flow === "face") {
+					console.log("Bỏ qua OTP vì flow=face.");
+					break;
+				}
+
+				// 2) Nếu web đang tắt 2FA thì bỏ qua (tuỳ chọn)
+				if (!window.is2FAEnabled) {
+					console.log("2FA đang tắt trên web → bỏ qua otp_request.");
+					break;
+				}
+
+				// 3) Phải có user đăng nhập
 				const user = window.firebase?.auth?.().currentUser || null;
-                if (!user) {
-                    console.warn("Không có user đăng nhập, không thể gửi OTP.");
-                    return;
-                }
+				if (!user) {
+					console.warn("Không có user đăng nhập, không thể sinh/gửi OTP.");
+					break;
+				}
 
-				// Dùng hàm generateOTP sẵn có nếu đã load từ mylock.js,
-				// nếu chưa có thì fallback local:
-				const otp = window.generateOTP();
+				// 4) Chống bắn OTP trùng (nếu broker hoặc nhiều tab gửi 2 lần sát nhau)
+				const now = Date.now();
+				if (window.__otpCooldownUntil && window.__otpCooldownUntil > now) {
+					console.warn("Bỏ qua otp_request do cooldown.");
+					break;
+				}
+				window.__otpCooldownUntil = now + 1000; // 1s
 
-				// Gửi OTP về cho ESP32 (ESP32 đã subscribe "door/otp")
-				window.mqttClient.publish("door/otp", otp, { retain: false, qos: 0 });
-				console.log("Đã publish OTP về ESP32:", otp);
+				// 5) Tạo OTP (generateOTP của bạn đã tự gửi EmailJS bên trong nếu có)
+				const otp = (typeof window.generateOTP === "function")
+					? window.generateOTP()
+					: (() => {
+						const digits = "0123456789";
+						let out = "";
+						for (let i = 0; i < 6; i++) out += digits[Math.floor(Math.random() * 10)];
+						return out;
+					})();
 
-				// Tuỳ chọn: thông báo lên UI và ghi lịch sử
+				// 6) Gửi OTP về ESP32 (KHÔNG retained)
+				if (window.mqttClient?.connected) {
+					window.mqttClient.publish("door/otp", otp, { retain: false, qos: 0 });
+					console.log("Đã publish OTP về ESP32:", otp);
+				} else {
+					console.error("MQTT chưa kết nối, không thể gửi OTP.");
+					break;
+				}
+				
+				alert(`Mã OTP của bạn: ${otp}`);
+				
+				// 7) Hiển thị nhẹ nhàng lên UI (nếu có banner)
 				try {
-					alert("OTP: " + otp); // hoặc hiển thị vào UI thay vì alert
-					const user = window.firebase?.auth?.().currentUser || null;
-					if (user) {
-						logUserAction(user.uid, "Sinh OTP cho 2FA");
+					const banner = document.getElementById("otp-banner");
+					if (banner) {
+					banner.textContent = `OTP: ${otp}`;
+					banner.classList.remove("hidden");
+					}
+				} catch (_) {}
+
+				// 8) Ghi lịch sử: kèm action + otp + flow
+				try {
+					if (typeof logUserAction === "function") {
+					// logUserAction nâng cấp: nhận object và thêm serverTimestamp ở trong
+					logUserAction(user.uid, { action: "OTP generated", otp, flow });
 					}
 				} catch (e) {
-					console.warn("Không thể hiển thị/ghi log OTP:", e);
+					console.warn("Không thể ghi history OTP:", e);
 				}
 				break;
 			}
+
 
 			default:
 				// ignore

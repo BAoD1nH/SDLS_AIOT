@@ -233,29 +233,41 @@ function generateOTP(length = 6) {
     return otp;
 }
 
-// Function to log user actions to Firestore (duplicated here to ensure availability)
-function logUserAction(userId, action) {
-	if (!window.firebase || !window.firebase.firestore) {
-		console.error('Firebase Firestore not initialized in logUserAction');
-		return Promise.resolve();
-	}
-	const db = window.firebase.firestore();
-	// NEW (đã đổi)
-	const FieldValue = firebase.firestore.FieldValue;
-	if (FieldValue && FieldValue.arrayUnion && FieldValue.serverTimestamp) {
-	return db.collection('users').doc(userId).set({
-		history: FieldValue.arrayUnion({ date: FieldValue.serverTimestamp(), action })
-	}, { merge: true });
-	}
-	// Fallback an toàn nếu FieldValue chưa sẵn sàng
-	const ref = db.collection('users').doc(userId);
-	return ref.get().then(snap => {
-	const data = snap.exists ? (snap.data() || {}) : {};
-	const hist = Array.isArray(data.history) ? data.history.slice() : [];
-	hist.push({ date: new Date(), action });
-	return ref.set({ history: hist }, { merge: true });
-	});
+// Function to log user actions to Firestore (upgraded)
+function logUserAction(userId, actionOrData, extra = null) {
+  if (!window.firebase || !window.firebase.firestore) {
+    console.error('Firebase Firestore not initialized in logUserAction');
+    return Promise.resolve();
+  }
+  const db = window.firebase.firestore();
+  const FV = window.firebase.firestore.FieldValue;
+
+  // Xây entry: nhận chuỗi (cũ) hoặc object (mới)
+  let entry = (typeof actionOrData === 'string')
+    ? { action: actionOrData }
+    : (actionOrData && typeof actionOrData === 'object' ? { ...actionOrData } : { action: String(actionOrData) });
+
+  // Gộp extra nếu truyền ở tham số thứ 3
+  if (extra && typeof extra === 'object') entry = { ...entry, ...extra };
+
+  // Thêm mốc thời gian
+  if (FV && FV.serverTimestamp) entry.date = FV.serverTimestamp();
+  else entry.date = new Date();
+
+  const ref = db.collection('users').doc(userId);
+
+  // Dùng arrayUnion nếu sẵn sàng, không thì fallback
+  if (FV && FV.arrayUnion) {
+    return ref.set({ history: FV.arrayUnion(entry) }, { merge: true });
+  }
+  return ref.get().then(snap => {
+    const data = snap.exists ? (snap.data() || {}) : {};
+    const hist = Array.isArray(data.history) ? data.history.slice() : [];
+    hist.push(entry);
+    return ref.set({ history: hist }, { merge: true });
+  });
 }
+
 
 // Define showMessage globally to match auth.js
 function showMessage(div, message, isSuccess) {
