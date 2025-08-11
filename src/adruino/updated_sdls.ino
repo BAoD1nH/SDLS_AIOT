@@ -6,7 +6,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-
+#include <Preferences.h>  // NVS cho ESP32
 //----------------------------------------------------  FLAGS ----------------------------------------------------//
 bool enablePinFlow = false;
 bool enableWebFlow = false;
@@ -30,6 +30,16 @@ unsigned long faceStartTime = 0;
 const unsigned long FACE_TIMEOUT_MS = 30000; // 30s
 String faceUserId = "";
 float faceDistance = 1.0f;
+
+//8.11.25 - Add "Update password manually" - Flow đổi mật khẩu thủ công
+Preferences prefs; 
+bool enablePassChangeFlow = false;
+enum PassChangeState { ENTER_OLD, ENTER_NEW, CONFIRM_NEW };
+PassChangeState passChangeState = ENTER_OLD;
+String passBuf = "";
+String newPinCandidate = "";
+unsigned long passChangeLastKeyTs = 0;
+const unsigned long PASS_CHANGE_TIMEOUT_MS = 30000;  // 30s không bấm thì thoát
 
 //----------------------------------------------------  VARIABLES ----------------------------------------------------//
 String inputString = "";
@@ -145,6 +155,18 @@ void setup() {
 	lcdShowMessage("Welcome", "Smart Door Lock");
 	delay(1500);
 
+	//8.11.25 - Add "Update password manually"
+	// Đọc PIN từ NVS (nếu đã lưu trước đó)
+	prefs.begin("lock", false);
+	String savedPin = prefs.getString("pin", "");
+	if (savedPin.length() >= 4 && savedPin.length() <= 8) {
+		currentLockPassword = savedPin;
+		Serial.printf("[NVS] Loaded saved PIN: %s\n", currentLockPassword.c_str());
+	} else {
+		// Nếu chưa có, giữ "1234" và sẽ lưu khi người dùng setup/đổi
+		Serial.println("[NVS] No saved PIN, using default 1234");
+	}
+
 	// Nếu là lần đầu tiên thì setup mật khẩu
 	if (firstTime) {
 		setupPassword();    
@@ -188,6 +210,7 @@ void loop() {
 	if (enablePinFlow) handlePinFlow();
 	if (enableWebFlow) handleWebFlow();
 	if (enableFaceFlow) handleFaceFlow();
+	if (enablePassChangeFlow) handleManualPassChangeFlow();
 
 	// ✅ Nếu đủ điều kiện auto-lock → gọi luôn
 	if (auto_lock_var && (millis() - lastUnlockTime >= 10000)) {
@@ -195,7 +218,7 @@ void loop() {
 	}
 
 	// ✅ Sau khi auto lock hoặc không còn flow nào đang chạy
-	if (!enablePinFlow && !enableWebFlow && !enableFaceFlow && !auto_lock_var) {
+	if (!enablePinFlow && !enableWebFlow && !enableFaceFlow && !enablePassChangeFlow && !auto_lock_var) {
 		selectUnlockMode();  // Quay về menu chính
 	}
 }
@@ -316,6 +339,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
 		if (newPass.length() >= 4 && newPass.length() <= 10) { // hoặc điều kiện bạn mong muốn
 			currentLockPassword = newPass;
+			//8.11.25 - ADD "Update password manually"
+			prefs.putString("pin", currentLockPassword); 
+
 			Serial.print("[WEB] Đã cập nhật mật khẩu mới từ website: ");
 			Serial.println(currentLockPassword);
 			lcdShowMessage("Password Updated", "From Website");
@@ -447,6 +473,9 @@ void setupPassword() {
 				bool formatOK = (inputString.length() >= 4 && inputString.length() <= 8);
         if (formatOK) {
           currentLockPassword = inputString;
+
+					//8.11.25 - Add "Update password manually"
+					prefs.putString("pin", currentLockPassword);
 
 					//8.11.25 - Add to fix bug "Update password via web"
 					if (client.connected()) {
@@ -608,7 +637,7 @@ void lcdShowMessage(String line1, String line2) {
 //---------------------------------------------------- LCD DISPLAY ----------------------------------------------------//
 
 void lcdShowUnlockOptions() {
-	lcdShowMessage("UNLOCK OPTION", "1PIN 2WEB 3FACE");
+	lcdShowMessage("1PIN 2WEB 3FACE", "A:Change PIN");
 }
 
 void lcdShowWelcome() {
@@ -678,6 +707,14 @@ void selectUnlockMode() {
 			break;
 		} else if (key == '3') {
 			enableFaceFlow = true;
+			break;
+		} else if (key == 'A') {
+			enablePassChangeFlow = true;
+			passChangeState = ENTER_OLD;
+			passBuf = "";
+			newPinCandidate = "";
+			passChangeLastKeyTs = millis();
+			lcdShowMessage("Enter Old PIN", "");
 			break;
 		}
 	}
@@ -781,4 +818,87 @@ void handleFaceFlow() {
 		faceFlowInit = false;
 		enableFaceFlow = false;
 	}
+}
+
+void handleManualPassChangeFlow() {
+  // Timeout không thao tác
+  if (millis() - passChangeLastKeyTs > PASS_CHANGE_TIMEOUT_MS) {
+    lcdShowMessage("Change PIN", "Timeout");
+    delay(1200);
+    // reset và thoát
+    passChangeState = ENTER_OLD;
+    passBuf = "";
+    newPinCandidate = "";
+    enablePassChangeFlow = false;
+    return;
+  }
+
+  char key = keypad.getKey();
+  if (!key) return;
+  passChangeLastKeyTs = millis();
+
+  if (key == '#') {
+    passBuf = "";
+    lcdShowMessage("Cleared", "");
+    delay(400);
+  } else if (key >= '0' && key <= '9') {
+    if (passBuf.length() < 8) {
+      passBuf += key;
+      switch (passChangeState) {
+        case ENTER_OLD:   lcdShowMessage("Old PIN:", passBuf); break;
+        case ENTER_NEW:   lcdShowMessage("New PIN:", passBuf); break;
+        case CONFIRM_NEW: lcdShowMessage("Confirm:", passBuf); break;
+      }
+    }
+  } else if (key == '*') {
+    // Xác nhận theo state
+    if (passChangeState == ENTER_OLD) {
+      if (passBuf == currentLockPassword) {
+        passChangeState = ENTER_NEW;
+        passBuf = "";
+        lcdShowMessage("Enter New PIN", "(4-8 digits)");
+      } else {
+        lcdShowMessage("Wrong Old PIN", "Try again");
+        passBuf = "";
+        delay(1000);
+        lcdShowMessage("Enter Old PIN", "");
+      }
+    } else if (passChangeState == ENTER_NEW) {
+      if (passBuf.length() >= 4 && passBuf.length() <= 8) {
+        newPinCandidate = passBuf;
+        passChangeState = CONFIRM_NEW;
+        passBuf = "";
+        lcdShowMessage("Confirm New PIN", "");
+      } else {
+        lcdShowMessage("PIN 4-8 digits", "Try again");
+        passBuf = "";
+        delay(1000);
+        lcdShowMessage("Enter New PIN", "");
+      }
+    } else if (passChangeState == CONFIRM_NEW) {
+      if (passBuf == newPinCandidate) {
+        currentLockPassword = newPinCandidate;
+        prefs.putString("pin", currentLockPassword);  // lưu NVS
+        lcdShowMessage("PIN Updated", "Publishing...");
+        // Publish retained để web hứng (nếu đang kết nối)
+        if (client.connected()) {
+          client.publish("door/password_sync", currentLockPassword.c_str(), true);
+        }
+        delay(1200);
+        // reset & thoát
+        passChangeState = ENTER_OLD;
+        passBuf = "";
+        newPinCandidate = "";
+        enablePassChangeFlow = false;
+        lcdShowUnlockOptions();
+      } else {
+        lcdShowMessage("Not Match", "Re-enter new");
+        passBuf = "";
+        newPinCandidate = "";
+        passChangeState = ENTER_NEW;
+        delay(1000);
+        lcdShowMessage("Enter New PIN", "");
+      }
+    }
+  }
 }
