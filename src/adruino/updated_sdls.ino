@@ -133,6 +133,8 @@ void handlePinFlow();           // Quản lý toàn bộ flow 1PIN
 void handleWebFlow();           // Quản lý toàn bộ flow 2WEB
 void handleFaceFlow();          // Quản lý toàn bộ flow 3FACE
 
+//---------------------------------------------------- Other functions ----------------------------------------------------//
+void softResetToSetup();  // <-- THÊM
 
 //----------------------------------------------------  SETUP ----------------------------------------------------//
 void setup() {
@@ -152,18 +154,22 @@ void setup() {
 	digitalWrite(buzzerPin, LOW);
 
 	// Hiển thị chào mừng
-	lcdShowMessage("Welcome", "Smart Door Lock");
-	delay(1500);
+	lcdShowMessage("Smart Door Lock", "B:Menu C:Reset");
+	delay(2000);
 
 	//8.11.25 - Add "Update password manually"
+	enable2FA = false;
+
 	// Đọc PIN từ NVS (nếu đã lưu trước đó)
 	prefs.begin("lock", false);
 	String savedPin = prefs.getString("pin", "");
 	if (savedPin.length() >= 4 && savedPin.length() <= 8) {
 		currentLockPassword = savedPin;
+		firstTime = false;
 		Serial.printf("[NVS] Loaded saved PIN: %s\n", currentLockPassword.c_str());
 	} else {
 		// Nếu chưa có, giữ "1234" và sẽ lưu khi người dùng setup/đổi
+		firstTime = true;
 		Serial.println("[NVS] No saved PIN, using default 1234");
 	}
 
@@ -192,6 +198,26 @@ void setup() {
 
 //----------------------------------------------------  LOOP ----------------------------------------------------//
 void loop() {
+	// Bắt phím B toàn cục để quay về menu
+	char globalKey = keypad.getKey();
+	if (globalKey == 'B') {
+			// Reset toàn bộ flow
+			enablePinFlow = false;
+			enableWebFlow = false;
+			enableFaceFlow = false;
+			enablePassChangeFlow = false;
+			auto_lock_var = false;
+
+			// Trở về menu chính
+			lcdShowUnlockOptions();
+			return; // Dừng loop tại đây, sang vòng sau
+	}
+	
+	if (globalKey == 'C') {           // <-- THÊM
+			softResetToSetup();           // <-- THÊM
+			return;                       // <-- THÊM
+	}
+
 	// Xử lý các flow
 	if (enableWiFiMQTT) {
 	// Wi-Fi reconnect nếu cần (có thể bỏ nếu WiFi ổn định)
@@ -523,15 +549,20 @@ bool checkPassword() {
 		int remaining = maxFailedAttempts - failedAttempts;
 		if (remaining > 0) {
 			lcdShowWrongPassword(remaining);
+			delay(2000);
+			inputString = "";
+			return false;  // <-- Sai mật khẩu
 		} else {
 			lcdShowMessage("Locked Out!", "");
 			publishWarning();
 			triggerAlarm();
 			failedAttempts = 0;
+
+			// NEW: tắt flow PIN và về menu
+			enablePinFlow = false;        
+			lcdShowUnlockOptions();        
+			return false;
 		}
-		delay(2000);
-		inputString = "";
-		return false;  // <-- Sai mật khẩu
 	}
 }
 
@@ -568,52 +599,72 @@ void resetFailedAttempts() {
 // }
 
 bool check2FASecurity() {
-	if (!otpReceived) {
-		Serial.println("[2FA] Chưa nhận được OTP từ web!");
-		lcdShowMessage("Waiting for OTP", "From Website...");
-		delay(2000);
-		return false;
-	}
+  // Nếu ai đó gọi nhầm khi 2FA đang tắt thì cho qua luôn
+  if (!enable2FA) return true;
 
-	String userInputOTP = "";
-	unsigned long startTime = millis();
+  // Clear trạng thái cũ để không ăn nhầm
+  otpReceived = false;
+  otpFromWeb  = "";
 
-	lcd.clear();
-	lcd.setCursor(0, 0);
-	lcd.print("Enter OTP:");
+  // 1) Gửi yêu cầu OTP lên web (KHÔNG retained)
+  if (enableWiFiMQTT && client.connected()) {
+    client.publish("door/otp_request", "pin", /*retained=*/false);
+  } else {
+    lcdShowMessage("2FA needs MQTT", "Press B to back");
+    delay(1200);
+    return false;
+  }
 
-	while (millis() - startTime < 30000) {
-		char key = keypad.getKey();
+  // 2) Chờ web gửi OTP (tối đa 20s) – vẫn chạy MQTT và cho phép hủy bằng B/C
+  lcdShowMessage("Waiting for OTP", "B:Back  C:Reset");
+  unsigned long waitStart = millis();
+  while (!otpReceived && (millis() - waitStart < 20000)) {
+    client.loop(); // quan trọng để nhận MQTT
+    char k = keypad.getKey();
+    if (k == 'B') return false;           // quay về menu
+    if (k == 'C') { softResetToSetup(); return false; } // reset mềm về setup
+    delay(5);
+  }
+  if (!otpReceived) {
+    lcdShowMessage("2FA Timeout", "No OTP");
+    delay(1200);
+    return false;
+  }
 
-		if (key) {
-			if (key == '*') {
-				if (userInputOTP == otpFromWeb) {
-					Serial.println("[2FA] OTP correct!");
-					otpReceived = false;  // ✅ Reset flag
-					return true;
-				} else {
-					Serial.println("[2FA] OTP incorrect!");
-					otpReceived = false;  // ✅ Reset flag
-					return false;
-				}
-			} else if (key == '#') {
-				userInputOTP = "";
-				lcdShowMessage("OTP Cleared", "");
-				delay(500);
-				lcd.clear();
-				lcd.print("Enter OTP:");
-			} else {
-				userInputOTP += key;
-				lcdShowMessage("OTP:", userInputOTP);
-			}
-		}
-	}
+  // 3) Đã có OTP -> cho nhập trong 30s
+  String userInputOTP = "";
+  unsigned long startTime = millis();
+  lcd.clear(); lcd.setCursor(0,0); lcd.print("Enter OTP:");
 
-	Serial.println("[2FA] Timeout waiting for OTP.");
-	otpReceived = false;  // ✅ Reset flag dù timeout
-	return false;
+  while (millis() - startTime < 30000) {
+    client.loop();
+    char key = keypad.getKey();
+    if (!key) continue;
+
+    if (key == 'B') { otpReceived = false; return false; }
+    if (key == 'C') { otpReceived = false; softResetToSetup(); return false; }
+    if (key == '#') {
+      userInputOTP = "";
+      lcdShowMessage("OTP Cleared", "");
+      delay(400);
+      lcd.clear(); lcd.setCursor(0,0); lcd.print("Enter OTP:");
+    } else if (key == '*') {
+      bool ok = (userInputOTP == otpFromWeb);
+      otpReceived = false; otpFromWeb = "";
+      if (ok) return true;
+      lcdShowMessage("2FA Failed", "Wrong OTP");
+      delay(1200);
+      return false;
+    } else if (key >= '0' && key <= '9') {
+      userInputOTP += key;
+      lcdShowMessage("OTP:", userInputOTP);
+    }
+  }
+
+  // 4) Hết giờ nhập
+  otpReceived = false; otpFromWeb = "";
+  return false;
 }
-
 
 //---------------------------------------------------- FACEID FLOW ----------------------------------------------------//
 void startFaceRecognition() {}
@@ -716,6 +767,9 @@ void selectUnlockMode() {
 			passChangeLastKeyTs = millis();
 			lcdShowMessage("Enter Old PIN", "");
 			break;
+		} else if (key == 'C') {        // <-- THÊM
+			softResetToSetup();       // <-- THÊM
+			break;                    // <-- THÊM
 		}
 	}
 }
@@ -731,27 +785,45 @@ void handlePinFlow() {
 	}
 
 	char key = keypad.getKey();
-	if (key) {
-		if (key == '*') {
-			bool success = checkPassword();  // Gọi và lưu kết quả
+	if (!key) return;
 
-			if (success) {
-				// Đúng pass → mở cửa → kết thúc flow, chờ auto lock
-				initialized = false;
-				enablePinFlow = false;
-			} else {
-				// Sai → reset để cho nhập lại
-				inputString = "";
-				lcdShowEnterPassword();
-			}
-		} else if (key == '#') {
+  // Ưu tiên xử lý phím điều hướng
+  if (key == 'B') {
+    // Về menu
+    initialized = false;
+    enablePinFlow = false;
+    lcdShowUnlockOptions();
+    return;
+  }
+  if (key == 'C') {
+    // Reset mềm: mở lại flow setup password (không xoá PIN đã lưu)
+    initialized = false;
+    enablePinFlow = false;
+    softResetToSetup();
+    return;
+  }
+
+	if (key == '*') {
+		bool success = checkPassword();  // Gọi và lưu kết quả
+
+		if (success) {
+			// Đúng pass → mở cửa → kết thúc flow, chờ auto lock
+			initialized = false;
+			enablePinFlow = false;
+		} else {
+			// Sai → reset để cho nhập lại
 			inputString = "";
 			lcdShowEnterPassword();
-		} else {
-			inputString += key;
-			lcdShowMessage("Input:", inputString);
 		}
-	}
+	} else if (key == '#') {
+		inputString = "";
+		lcdShowEnterPassword();
+	} else if (key >= '0' && key <= '9') {   // <-- CHỈ NHẬN CHỮ SỐ
+    inputString += key;
+    lcdShowMessage("Input:", inputString);
+  } else {
+    // Bỏ qua các phím khác (A/D...) để không bị append linh tinh
+  }
 }
 
 void handleWebFlow() {
@@ -837,6 +909,27 @@ void handleManualPassChangeFlow() {
   if (!key) return;
   passChangeLastKeyTs = millis();
 
+	// ===== ƯU TIÊN PHÍM ĐIỀU HƯỚNG =====
+  if (key == 'B') {
+    // Về menu, huỷ flow
+    passChangeState = ENTER_OLD;
+    passBuf = "";
+    newPinCandidate = "";
+    enablePassChangeFlow = false;
+    lcdShowUnlockOptions();
+    return;
+  }
+  if (key == 'C') {
+    // Reset mềm, huỷ flow và mở lại setup
+    passChangeState = ENTER_OLD;
+    passBuf = "";
+    newPinCandidate = "";
+    enablePassChangeFlow = false;
+    softResetToSetup();
+    return;
+  }
+
+	// ===== XỬ LÝ NHẬP LIỆU =====
   if (key == '#') {
     passBuf = "";
     lcdShowMessage("Cleared", "");
@@ -901,4 +994,26 @@ void handleManualPassChangeFlow() {
       }
     }
   }
+}
+
+void softResetToSetup() {
+    // Huỷ toàn bộ flow đang chạy
+    enablePinFlow = false;
+    enableWebFlow = false;
+    enableFaceFlow = false;
+    enablePassChangeFlow = false;
+    auto_lock_var = false;
+
+    // Tuỳ chọn: khoá cửa về trạng thái an toàn
+    lockDoor();
+
+    // Không xoá NVS, chỉ mở lại flow setup
+    lcdShowMessage("RESET MODE", "Setup PIN");
+    delay(800);
+
+    // Chạy lại flow setup như lần đầu (chỉ ghi khi người dùng xác nhận *)
+    setupPassword();
+
+    // Quay về menu
+    lcdShowUnlockOptions();
 }

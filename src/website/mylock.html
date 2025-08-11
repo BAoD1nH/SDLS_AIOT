@@ -247,6 +247,19 @@
                                     if (doc.exists && doc.data().avatarUrl) {
                                         accountImage.src = doc.data().avatarUrl;
                                     }
+
+                                    // ✅ ADD: Khôi phục trạng thái 2FA cho checkbox + biến toàn cục
+                                    const twoFAEl = document.getElementById('twoFA');
+                                    let twoFA = false;
+                                    if (doc.exists && typeof doc.data().twoFA === 'boolean') {
+                                    twoFA = doc.data().twoFA;       // ưu tiên giá trị trên Firestore
+                                    } else {
+                                    twoFA = localStorage.getItem('twoFA') === '1'; // fallback localStorage
+                                    }
+                                    if (twoFAEl) twoFAEl.checked = twoFA;
+                                    window.is2FAEnabled = twoFA;
+                                    localStorage.setItem('twoFA', twoFA ? '1' : '0'); // để mqtt.js đọc khi connect
+
                                     // Populate history table
                                     populateHistoryTable(user.uid);
                                 })

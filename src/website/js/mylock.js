@@ -134,25 +134,38 @@ function changePassword() {
 }
 
 function toggle2FA() {
-    const checkbox = document.getElementById("twoFA");
-    window.is2FAEnabled = !!checkbox.checked;
+  const checkbox = document.getElementById("twoFA");
+  window.is2FAEnabled = !!checkbox.checked;
 
-    if (window.mqttClient && window.mqttClient.connected) {
-        const payload = window.is2FAEnabled ? "on" : "off";
-        window.mqttClient.publish("door/2fa", payload);
-        console.log("📤 Gửi trạng thái 2FA:", payload);
-        // Log 2FA toggle action
-        const user = window.firebase.auth().currentUser;
-        if (user) {
-            logUserAction(user.uid, window.is2FAEnabled ? 'Bật xác thực hai yếu tố' : 'Tắt xác thực hai yếu tố').then(() => {
-                alert(`✅ Đã ${window.is2FAEnabled ? "bật" : "tắt"} xác thực hai bước (2FA).`);
-            });
-        }
-    } else {
-        const errorDiv = document.getElementById("password-error");
-		if (errorDiv) showMessage(errorDiv, "MQTT chưa kết nối. Không thể gửi trạng thái 2FA.", false);
-    }
+  // Lưu Firestore
+  const user = window.firebase?.auth?.().currentUser;
+  if (user) {
+    const db = window.firebase.firestore();
+    db.collection("users").doc(user.uid)
+      .set({ twoFA: window.is2FAEnabled }, { merge: true })
+      .catch(err => console.error("Lỗi lưu twoFA:", err));
+  }
+
+  // Lưu localStorage (dự phòng)
+  localStorage.setItem("twoFA", window.is2FAEnabled ? "1" : "0");
+
+  // Gửi cho ESP32 nếu MQTT đang connected
+  if (window.mqttClient?.connected) {
+    const payload = window.is2FAEnabled ? "on" : "off";
+    window.mqttClient.publish("door/2fa", payload);
+    console.log("📤 Gửi trạng thái 2FA:", payload);
+  } else {
+    const errorDiv = document.getElementById("password-error");
+    if (errorDiv) showMessage(errorDiv, "MQTT chưa kết nối. Trạng thái 2FA đã được lưu, sẽ đồng bộ khi kết nối lại.", false);
+  }
+
+  // Log
+  if (user) {
+    logUserAction(user.uid, window.is2FAEnabled ? 'Bật xác thực hai yếu tố' : 'Tắt xác thực hai yếu tố')
+      .then(() => alert(`✅ Đã ${window.is2FAEnabled ? "bật" : "tắt"} xác thực hai bước (2FA).`));
+  }
 }
+
 
 function generateOTP(length = 6) {
     const digits = '0123456789';
