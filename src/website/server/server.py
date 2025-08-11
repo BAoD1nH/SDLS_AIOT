@@ -245,14 +245,19 @@ def list_users():
         # tìm index lớn nhất
         latest_idx = 0
         latest_mtime = 0.0
+        latest_name = None
+        count = 0
+
         for p in user_dir.iterdir():
             if p.is_file() and p.name != "_meta.json":
                 stem = p.stem
                 if stem.isdigit():
                     try:
                         idx = int(stem)
+                        count += 1
                         latest_idx = max(latest_idx, idx)
                         latest_mtime = max(latest_mtime, p.stat().st_mtime)
+                        latest_name = p.name
                     except:
                         pass
 
@@ -265,12 +270,20 @@ def list_users():
                 user_name = data.get("userName", "") or ""
             except Exception:
                 pass
+        
+        # dựng URL ảnh mới nhất (nếu có)
+        image_url = None
+        if latest_name:
+            rel = f"/upload/{user_dir.name}/{latest_name}"
+            image_url = abs_url(rel)
 
         result.append({
             "userId": user_dir.name,
             "userName": user_name,
             "latest_index": latest_idx or None,
-            "timestamp": int(latest_mtime * 1000) if latest_mtime else None
+            "timestamp": int(latest_mtime * 1000) if latest_mtime else None,
+            "imageUrl": image_url,                 
+            "imagesCount": count
         })
 
     # sort theo thời gian sửa đổi mới nhất

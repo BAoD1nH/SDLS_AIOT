@@ -5,7 +5,7 @@ import time
 import paho.mqtt.client as mqtt
 
 # ========= MQTT CONFIG =========
-MQTT_BROKER = "192.168.160.151"  # broker của bạn
+MQTT_BROKER = "192.168.1.8"  # broker của bạn
 MQTT_PORT = 1883
 MQTT_TOPIC = "smartlock/verify"  # ESP32-S3 sẽ subscribe
 MQTT_CLIENT_ID = "server-face-recog"

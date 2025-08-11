@@ -144,7 +144,7 @@ String latest_label = "unknown";
 float latest_confidence = 0.0;
 
 // ===== Server nhận ảnh =====
-const char* UPLOAD_HOST = "192.168.1.6";	// đổi theo server của bạn
+const char* UPLOAD_HOST = "192.168.1.8";	// đổi theo server của bạn
 const uint16_t UPLOAD_PORT = 8000;			// đổi theo server
 const char* UPLOAD_PATH = "/upload";		// endpoint trên server
 unsigned long last_upload_ms = 0;
