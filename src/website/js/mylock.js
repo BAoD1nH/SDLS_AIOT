@@ -1,3 +1,6 @@
+SERVICE_ID = 'service_mn6g0ha'
+TEMPLATE_ID = 'template_wkkkq4u'
+
 function toggleLock() {
     if (!mqttClient || !mqttClient.connected) {
         alert("Không thể kết nối đến MQTT. Vui lòng kiểm tra kết nối.");
@@ -166,12 +169,66 @@ function toggle2FA() {
   }
 }
 
+// Function to send OTP via email using EmailJS
+async function sendOTPByEmail(userId, otp) {
+    const user = window.firebase?.auth?.().currentUser;
+    if (!user || user.uid !== userId) {
+        console.warn("Không có user đăng nhập hoặc userId không khớp, không thể gửi OTP qua email.");
+        return { success: false, error: "No authenticated user or userId mismatch" };
+    }
+    if (typeof emailjs === 'undefined') {
+        console.error("EmailJS SDK not loaded, cannot send OTP email.");
+        const errorDiv = document.getElementById("password-error") || document.getElementById("error-message");
+        if (errorDiv) {
+            showMessage(errorDiv, "Lỗi: EmailJS chưa sẵn sàng, không thể gửi OTP.", false);
+        } else {
+            alert("Lỗi: EmailJS chưa sẵn sàng, không thể gửi OTP.");
+        }
+        return { success: false, error: "EmailJS SDK not loaded" };
+    }
+    try {
+        const db = window.firebase.firestore();
+        const userDoc = await db.collection('users').doc(user.uid).get();
+        const username = userDoc.exists ? (userDoc.data().username || user.email.split('@')[0]) : user.email.split('@')[0];
+        const email = user.email;
+        const templateParams = {
+            username: username,
+            otp: otp,
+            to_email: email
+        };
+        await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams);
+        console.log("Đã gửi OTP qua email đến:", email);
+
+		const errorDiv = document.getElementById("password-error") || document.getElementById("error-message");
+        if (errorDiv) {
+            showMessage(errorDiv, "OTP đã được gửi đến email của bạn: " + email, true);
+        } else {
+            alert("OTP đã được gửi đến email của bạn: " + email);
+        }
+        return { success: true, otp: otp };
+    } catch (e) {
+        console.error("Lỗi khi gửi OTP qua email:", e);
+        const errorDiv = document.getElementById("password-error") || document.getElementById("error-message");
+        if (errorDiv) {
+            showMessage(errorDiv, "Lỗi: Không thể gửi OTP qua email. Vui lòng thử lại.", false);
+        } else {
+            alert("Lỗi: Không thể gửi OTP qua email. Vui lòng thử lại.");
+        }
+        return { success: false, error: e.message };
+    }
+}
 
 function generateOTP(length = 6) {
     const digits = '0123456789';
     let otp = '';
     for (let i = 0; i < length; i++) {
         otp += digits[Math.floor(Math.random() * 10)];
+    }
+    const user = window.firebase?.auth?.().currentUser;
+    if (user) {
+        sendOTPByEmail(user.uid, otp).catch(err => console.error("Failed to send OTP email:", err));
+    } else {
+        console.warn("No authenticated user, skipping OTP email.");
     }
     return otp;
 }
@@ -214,3 +271,4 @@ window.changePassword = changePassword;
 window.toggle2FA = toggle2FA;
 window.generateOTP = generateOTP;
 window.showMessage = showMessage;
+window.sendOTPByEmail = sendOTPByEmail;
