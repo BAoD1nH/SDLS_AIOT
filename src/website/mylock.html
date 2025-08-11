@@ -12,6 +12,23 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
+    <!-- Define initEmailJS inline before loading the SDK -->
+    <script>
+        function initEmailJS() {
+            if (typeof emailjs === 'undefined') {
+                console.error('EmailJS SDK not loaded. Ensure the EmailJS script is included and loaded.');
+                return false;
+            }
+            emailjs.init('ad1KuKpoS5X2I1i4P'); // Your EmailJS Public Key
+            console.log('EmailJS initialized successfully');
+            return true;
+        }
+    </script>
+
+    <!-- Primary EmailJS CDN with fallback -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4.4.1/dist/email.min.js" onload="initEmailJS()" onerror="console.error('Primary EmailJS CDN failed, trying fallback'); document.getElementById('emailjs-fallback').src='https://unpkg.com/@emailjs/browser@4.4.1/dist/email.min.js';"></script>
+    <script id="emailjs-fallback" onload="initEmailJS()" onerror="console.error('Fallback EmailJS SDK failed to load')"></script>
+    
     <script type="module">
         // Import at top level
         import { auth, db, storage } from './js/firebase.js';

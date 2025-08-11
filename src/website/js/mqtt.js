@@ -121,16 +121,15 @@ function connectMQTT() {
 				// msg có thể là "pin" / "face" tuỳ phía ESP32 gửi; không bắt buộc dùng.
 				console.log("ESP32 yêu cầu OTP cho flow:", msg);
 
+				const user = window.firebase?.auth?.().currentUser || null;
+                if (!user) {
+                    console.warn("Không có user đăng nhập, không thể gửi OTP.");
+                    return;
+                }
+
 				// Dùng hàm generateOTP sẵn có nếu đã load từ mylock.js,
 				// nếu chưa có thì fallback local:
-				const otp = (typeof window.generateOTP === "function")
-					? window.generateOTP()
-					: (function fallbackOTP(len = 6) {
-						const digits = "0123456789";
-						let out = "";
-						for (let i = 0; i < len; i++) out += digits[Math.floor(Math.random() * 10)];
-						return out;
-					})();
+				const otp = window.generateOTP();
 
 				// Gửi OTP về cho ESP32 (ESP32 đã subscribe "door/otp")
 				window.mqttClient.publish("door/otp", otp, { retain: false, qos: 0 });
