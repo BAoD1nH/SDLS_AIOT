@@ -54,13 +54,7 @@
         }
     </script>
 
-    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <script>
-        // LẤY PUBLIC KEY từ EmailJS dashboard (Account → API keys)
-        const EMAILJS_PUBLIC_KEY = "YOUR_PUBLIC_KEY_HERE";
-        emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
-    </script>
-
+    <script defer src="js/auth.js"></script>
     <script defer src="js/mqtt.js"></script>
     <script defer src="js/mylock.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -82,7 +76,7 @@
                         <img id="account-image" src="https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png" alt="Account" class="h-10 w-10 rounded-full cursor-pointer">
                         <div id="dropdown-menu" class="absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-50 hidden">
                             <a href="setting.html" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Settings</a>
-                            <button onclick="logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Log Out</button>
+                            <button onclick="window.logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Log Out</button>
                         </div>
                     </div>
                 </div>
