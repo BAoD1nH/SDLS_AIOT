@@ -277,14 +277,6 @@ document.addEventListener("DOMContentLoaded", () => {
 	});
 });
 
-
-
-// Tải danh sách ngay khi trang load
-window.addEventListener("DOMContentLoaded", loadUsers);
-window.addEventListener("DOMContentLoaded", loadVerifications);
-
-
-
 /// ======================== MQTT (subscribe smartlock/verify) =====================
 (function initMQTTListener() {
   const list = document.querySelector("#verificationList");
@@ -460,6 +452,124 @@ window.closeGallery = function() {
     if (e.key === "Escape") closeGallery();
   });
 })();
+
+// ============ ESP32-CAM stream + prediction ============
+const CAM_HOST_KEY = "esp32cam_host";
+let camBase = localStorage.getItem(CAM_HOST_KEY) || "";
+let jpgTimer = null;
+let predTimer = null;
+
+function startSnapshotLoop(intervalMs = 400) {
+  if (jpgTimer) clearInterval(jpgTimer);
+  const img = document.getElementById("camStream");
+  if (!img || !camBase) return;
+
+  // trạng thái ban đầu
+  setCamStatus("Đang kết nối…");
+
+  img.onload  = () => setCamStatus("Đã kết nối ESP32-CAM.", true);
+  img.onerror = () => setCamStatus("Không tải được ảnh từ /jpg.", false);
+
+  jpgTimer = setInterval(() => {
+    img.src = `${camBase.replace(/\/+$/,'')}/jpg?t=${Date.now()}`;
+  }, intervalMs);
+}
+
+
+function setCamStatus(text, ok = null) {
+  const el = document.getElementById("camStreamStatus");
+  if (!el) return;
+  el.textContent = text;
+  el.classList.remove("text-gray-400", "text-red-400", "text-green-400");
+  if (ok === true) el.classList.add("text-green-400");
+  else if (ok === false) el.classList.add("text-red-400");
+  else el.classList.add("text-gray-400");
+}
+
+function startStream() {
+  const img = document.getElementById("camStream");
+  if (!img || !camBase) return;
+
+  // Làm sạch cờ lỗi cũ
+  delete img.dataset.err;
+
+  // MJPEG qua <img> không cần CORS
+  img.src = `${camBase.replace(/\/+$/,'')}/stream`;
+
+  // Sự kiện báo lỗi/kết nối
+  img.onload = () => setCamStatus("Đang stream từ ESP32-CAM.", true);
+  img.onerror = () => setCamStatus("Không thể kết nối stream. Kiểm tra IP/Port hoặc mạng LAN.", false);
+}
+
+async function pollPrediction() {
+  const lbl = document.getElementById("predLabel");
+  const conf = document.getElementById("predConf");
+  const upd = document.getElementById("predUpdated");
+  if (!camBase || !lbl || !conf || !upd) return;
+
+  try {
+    const url = `${camBase.replace(/\/+$/,'')}/prediction`;
+    // CORS đã bật ở ESP32 (Access-Control-Allow-Origin: *)
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const j = await r.json();
+
+    lbl.textContent  = j.label ?? "—";
+    conf.textContent = (typeof j.confidence === "number")
+      ? (j.confidence * 100).toFixed(2) + "%"
+      : "—";
+    upd.textContent  = "Cập nhật: " + new Date().toLocaleString();
+
+  } catch (e) {
+    // Không spam lỗi UI
+    upd.textContent = "Chưa nhận được /prediction…";
+  }
+}
+
+function startPredictionPoll(intervalMs = 1000) {
+  if (predTimer) clearInterval(predTimer);
+  predTimer = setInterval(pollPrediction, intervalMs);
+  pollPrediction();
+}
+
+function applyCamHost(host) {
+  camBase = (host || "").trim();
+  if (camBase && !/^https?:\/\//i.test(camBase)) camBase = "http://" + camBase;
+
+  if (!camBase) { 
+    if (jpgTimer) clearInterval(jpgTimer); 
+    if (predTimer) clearInterval(predTimer);
+    setCamStatus("Chưa kết nối.");
+    return; 
+  }
+  localStorage.setItem(CAM_HOST_KEY, camBase);
+  startSnapshotLoop(400);
+  startPredictionPoll(1000);
+}
+
+
+function initCamUI() {
+  const input = document.getElementById("camHost");
+  const btn = document.getElementById("camConnectBtn");
+
+  // Prefill từ localStorage
+  if (input && camBase) input.value = camBase;
+
+  if (btn) {
+    btn.addEventListener("click", () => {
+      const val = input?.value || "";
+      applyCamHost(val);
+    });
+  }
+
+  // Tự kết nối nếu đã có host lưu trước đó
+  if (camBase) applyCamHost(camBase);
+}
+
+document.addEventListener("DOMContentLoaded", initCamUI);
+// Tải danh sách ngay khi trang load
+window.addEventListener("DOMContentLoaded", loadUsers);
+window.addEventListener("DOMContentLoaded", loadVerifications);
 
 
 // Gọi mỗi 2 giây (nếu đã dùng MQTT realtime thì có thể giảm/tắt polling)

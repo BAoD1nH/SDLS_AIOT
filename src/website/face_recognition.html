@@ -52,6 +52,55 @@
 				<p id="status" class="mt-2 text-lg text-gray-400">Sẵn sàng upload ảnh lên server local.</p>
 			</div>
 
+			<!-- Live stream từ ESP32-CAM -->
+			<section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+			<div class="flex items-center justify-between gap-4 mb-4">
+				<h3 class="text-xl font-bold text-gray-200">Live stream ESP32-CAM</h3>
+
+				<div class="flex items-center gap-2">
+				<input id="camHost"
+						class="px-3 py-2 rounded-md bg-gray-700 border border-gray-600 text-gray-200 w-64"
+						placeholder="http://192.168.1.50">
+				<button id="camConnectBtn"
+						class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+					Kết nối
+				</button>
+				</div>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+				<!-- Khung stream -->
+				<div>
+				<div class="relative w-full bg-black rounded-lg border border-gray-700 overflow-hidden">
+					<!-- Giữ tỉ lệ, không bóp méo -->
+					<img id="camStream"
+						alt="ESP32-CAM stream"
+						class="w-full h-[360px] object-contain bg-black select-none"
+						src=""
+						onerror="this.dataset.err=1">
+				</div>
+				<p id="camStreamStatus" class="mt-2 text-sm text-gray-400">
+					Chưa kết nối.
+				</p>
+				</div>
+
+				<!-- Kết quả /prediction -->
+				<div>
+				<h4 class="text-lg font-semibold text-gray-200 mb-2">Nhận dạng (từ /prediction)</h4>
+				<div class="rounded-lg border border-gray-700 p-4">
+					<p class="text-sm text-gray-400">Label</p>
+					<p id="predLabel" class="text-xl font-semibold text-gray-100">—</p>
+
+					<p class="mt-4 text-sm text-gray-400">Confidence</p>
+					<p id="predConf" class="text-xl font-semibold text-gray-100">—</p>
+
+					<p id="predUpdated" class="mt-4 text-xs text-gray-500">Chưa có dữ liệu.</p>
+				</div>
+				</div>
+			</div>
+			</section>
+
+
 			<!-- Enroll + Registered side-by-side -->
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
 			<!-- Đăng ký khuôn mặt -->
