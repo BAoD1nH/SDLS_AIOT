@@ -33,6 +33,15 @@ function connectMQTT() {
                 console.log("📡 Subscribed to esp32/camera/latest");
             }
         });
+
+		//8.11.25 - Fix "2FA for PIN Flow + 2WEB"
+		window.mqttClient.subscribe("door/otp_request", (err) => {
+			if (err) {
+				console.error("❌ Không thể subscribe door/otp_request:", err);
+			} else {
+				console.log("📡 Subscribed door/otp_request (ESP32 yêu cầu OTP)");
+			}
+		});
     });
 
     window.mqttClient.on("error", (err) => {
@@ -40,9 +49,15 @@ function connectMQTT() {
     });
 
     //8.11.25 - Gộp 3 message lại chung 1 khổi
-    window.mqttClient.on("message", async (topic, payload) => {
+    window.mqttClient.on("message", async (topic, payload, packet) => {
 		const msg = payload.toString();
 
+		// BỎ QUA MỌI GÓI RETAINED để không sinh OTP khi reload trang
+		if (packet?.retain) {
+			// console.log("Bỏ qua retained:", topic, msg);
+			return;
+		}
+		
 		switch (topic) {
 			case "door/status": {
 				console.log("ESP32 gửi trạng thái:", msg);
@@ -98,6 +113,38 @@ function connectMQTT() {
 					console.log("Đã đồng bộ lockPassword từ thiết bị vào Firestore");
 				} catch (e) {
 					console.error("Lỗi ghi Firestore khi đồng bộ lockPassword:", e);
+				}
+				break;
+			}
+
+			case "door/otp_request": {
+				// msg có thể là "pin" / "face" tuỳ phía ESP32 gửi; không bắt buộc dùng.
+				console.log("ESP32 yêu cầu OTP cho flow:", msg);
+
+				// Dùng hàm generateOTP sẵn có nếu đã load từ mylock.js,
+				// nếu chưa có thì fallback local:
+				const otp = (typeof window.generateOTP === "function")
+					? window.generateOTP()
+					: (function fallbackOTP(len = 6) {
+						const digits = "0123456789";
+						let out = "";
+						for (let i = 0; i < len; i++) out += digits[Math.floor(Math.random() * 10)];
+						return out;
+					})();
+
+				// Gửi OTP về cho ESP32 (ESP32 đã subscribe "door/otp")
+				window.mqttClient.publish("door/otp", otp, { retain: false, qos: 0 });
+				console.log("Đã publish OTP về ESP32:", otp);
+
+				// Tuỳ chọn: thông báo lên UI và ghi lịch sử
+				try {
+					alert("OTP: " + otp); // hoặc hiển thị vào UI thay vì alert
+					const user = window.firebase?.auth?.().currentUser || null;
+					if (user) {
+						logUserAction(user.uid, "Sinh OTP cho 2FA");
+					}
+				} catch (e) {
+					console.warn("Không thể hiển thị/ghi log OTP:", e);
 				}
 				break;
 			}

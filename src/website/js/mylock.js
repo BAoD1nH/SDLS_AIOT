@@ -1,39 +1,27 @@
 function toggleLock() {
-    if (mqttClient && mqttClient.connected) {
-        console.log("⚙️ is2FAEnabled =", window.is2FAEnabled);
+    if (!mqttClient || !mqttClient.connected) {
+        alert("Không thể kết nối đến MQTT. Vui lòng kiểm tra kết nối.");
+        return;
+    }
 
-        if (window.is2FAEnabled) {
-            const otp = generateOTP();
-            mqttClient.publish("door/otp", otp);
-            console.log("📤 Gửi OTP tới ESP32:", otp);
-            alert("✅ OTP: " + otp + "\nVui lòng nhập OTP này trên thiết bị.");
+    // Chỉ gửi lệnh mở cửa. KHÔNG sinh/gửi OTP ở đây.
+    mqttClient.publish("door/control", "open");
+    console.log("Đã gửi lệnh mở cửa tới ESP32.");
 
-            // ⏱️ Delay 1–2 giây trước khi gửi lệnh mở cửa
-            setTimeout(() => {
-                mqttClient.publish("door/control", "open");
-                console.log("📤 Gửi lệnh mở cửa tới ESP32.");
-                alert("🚪 Đã gửi lệnh mở cửa.");
-                // Log door open action
-                const user = window.firebase.auth().currentUser;
-                if (user) {
-                    logUserAction(user.uid, 'Mở khóa cửa');
-                }
-            }, 1500); // 1.5 giây chờ ESP32 nhận OTP trước
-        } else {
-            // Nếu không bật 2FA, gửi lệnh mở cửa như thường
-            mqttClient.publish("door/control", "open");
-            console.log("📤 Gửi lệnh mở cửa tới ESP32.");
-            alert("🚪 Đã gửi lệnh mở cửa.");
-            // Log door open action
-            const user = window.firebase.auth().currentUser;
-            if (user) {
-                logUserAction(user.uid, 'Mở khóa cửa');
-            }
-        }
+    if (window.is2FAEnabled) {
+        // Thông báo rõ là sẽ đợi thiết bị yêu cầu OTP
+        alert("Đã gửi lệnh mở. Vui lòng chờ thiết bị yêu cầu OTP, khi đó OTP sẽ hiển thị trên web.");
     } else {
-        alert("❌ Không thể kết nối đến MQTT. Vui lòng kiểm tra kết nối.");
+        alert("Đã gửi lệnh mở cửa.");
+    }
+
+    // Ghi log
+    const user = window.firebase?.auth?.().currentUser;
+    if (user) {
+        logUserAction(user.uid, "Mở khóa cửa");
     }
 }
+
 
 function changePassword() {
 	const oldPass = document.getElementById("oldPass").value?.trim();
