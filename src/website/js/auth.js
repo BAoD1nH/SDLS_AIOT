@@ -93,49 +93,44 @@ function signUp() {
         return;
     }
 
-    withFirebaseInitialized(() => {
-        return firebase.auth().createUserWithEmailAndPassword(email, password)
-            .then((userCredential) => {
-                const user = userCredential.user;
-                console.log('User created:', user.email);
-                // Create user document with initial history array
-                return firebase.firestore().collection('users').doc(user.uid).set({
-                    email: user.email,
-                    history: []
-                }).then(() => {
-                    // Log sign-up action
-                    return logUserAction(user.uid, 'Đăng ký tài khoản').then(() => user.sendEmailVerification());
-                });
-            })
-            .then(() => {
-                console.log('Verification email sent');
-                showMessage(errorMessageDiv, 'Đăng ký thành công! Email xác minh đã được gửi. Đang chuyển hướng...', true);
-                setTimeout(() => {
-                    window.location.href = 'verify.html';
-                }, 2000);
-            })
-            .catch((error) => {
-                console.error('Sign-up error:', error.code, error.message);
-                let errorMessage = 'Lỗi khi đăng ký: ';
-                switch (error.code) {
-                    case 'auth/email-already-in-use':
-                        errorMessage += 'Email đã được sử dụng.';
-                        break;
-                    case 'auth/invalid-email':
-                        errorMessage += 'Email không hợp lệ.';
-                        break;
-                    case 'auth/weak-password':
-                        errorMessage += 'Mật khẩu quá yếu. Vui lòng chọn mật khẩu mạnh hơn.';
-                        break;
-                    default:
-                        errorMessage += error.message;
-                }
-                showMessage(errorMessageDiv, errorMessage, false);
+    return firebase.auth().createUserWithEmailAndPassword(email, password)
+        .then((userCredential) => {
+            const user = userCredential.user;
+            console.log('User created:', user.email);
+            // Create user document with initial history array
+            return firebase.firestore().collection('users').doc(user.uid).set({
+                email: user.email,
+                history: []
+            }).then(() => {
+                // Log sign-up action
+                return logUserAction(user.uid, 'Đăng ký tài khoản').then(() => user.sendEmailVerification());
             });
-    }).catch((error) => {
-        console.error('Firebase initialization error in signUp:', error);
-        showMessage(errorMessageDiv, 'Lỗi: Firebase chưa được khởi tạo.', false);
-    });
+        })
+        .then(() => {
+            console.log('Verification email sent');
+            showMessage(errorMessageDiv, 'Đăng ký thành công! Email xác minh đã được gửi. Đang chuyển hướng...', true);
+            setTimeout(() => {
+                window.location.href = 'verify.html';
+            }, 2000);
+        })
+        .catch((error) => {
+            console.error('Sign-up error:', error.code, error.message);
+            let errorMessage = 'Lỗi khi đăng ký: ';
+            switch (error.code) {
+                case 'auth/email-already-in-use':
+                    errorMessage += 'Email đã được sử dụng.';
+                    break;
+                case 'auth/invalid-email':
+                    errorMessage += 'Email không hợp lệ.';
+                    break;
+                case 'auth/weak-password':
+                    errorMessage += 'Mật khẩu quá yếu. Vui lòng chọn mật khẩu mạnh hơn.';
+                    break;
+                default:
+                    errorMessage += error.message;
+            }
+            showMessage(errorMessageDiv, errorMessage, false);
+        });
 }
 
 function signIn() {
