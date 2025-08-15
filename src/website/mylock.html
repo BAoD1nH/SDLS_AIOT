@@ -143,7 +143,15 @@
             </div>
 
             <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
-                <h3 class="text-xl font-bold text-gray-200 mb-4">Lịch sử</h3>
+                
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold text-gray-200">Lịch sử</h3>
+                    <button onclick="clearHistory()"
+                        class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm">
+                        Xoá lịch sử
+                    </button>
+                </div>
+
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-700">
                         <thead>
@@ -177,6 +185,30 @@
                 console.error('Firebase initialization failed');
             }
         }
+
+        function clearHistory() {
+            const user = window.firebase?.auth?.().currentUser;
+            if (!user) {
+                alert("Vui lòng đăng nhập để xoá lịch sử.");
+                return;
+            }
+
+            if (!confirm("Bạn có chắc chắn muốn xoá toàn bộ lịch sử?")) {
+                return;
+            }
+
+            window.firebase.firestore().collection("users").doc(user.uid)
+                .set({ history: [] }, { merge: true })
+                .then(() => {
+                    alert("Đã xoá lịch sử thành công!");
+                    populateHistoryTable(user.uid); // Refresh bảng
+                })
+                .catch(err => {
+                    console.error("Lỗi khi xoá lịch sử:", err);
+                    alert("Lỗi khi xoá lịch sử: " + err.message);
+                });
+        }
+
 
         // Function to format ISO date to readable format
         function formatDate(v) {
@@ -328,8 +360,20 @@
                                             if (doorStatus) {
                                                 doorStatus.textContent = msg;
                                             }
-                                            // Refresh history on door status change
-                                            populateHistoryTable(user.uid);
+
+                                            const user = window.firebase?.auth?.().currentUser;
+                                            if (user) {
+                                                logUserAction(user.uid, msg) // log ngay khi nhận MQTT
+                                                    .then(() => {
+                                                        populateHistoryTable(user.uid); // chỉ load lại khi log xong
+                                                    })
+                                                    .catch(err => {
+                                                        console.error("Lỗi ghi log:", err);
+                                                        populateHistoryTable(user.uid); // fallback nếu log lỗi
+                                                    });
+                                            } else {
+                                                populateHistoryTable(user.uid);
+                                            }
                                         }
                                     });
                                     clearInterval(interval);

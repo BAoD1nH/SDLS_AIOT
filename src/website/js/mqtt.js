@@ -52,9 +52,9 @@ function connectMQTT() {
     window.mqttClient.on("message", async (topic, payload, packet) => {
 		const msg = payload.toString();
 
-		// BỎ QUA MỌI GÓI RETAINED để không sinh OTP khi reload trang
-		if (packet?.retain) {
-			// console.log("Bỏ qua retained:", topic, msg);
+		// Chỉ bỏ qua retained cho các topic dễ gây lặp (ví dụ OTP), 
+		// NHƯNG KHÔNG bỏ qua password_sync vì cần đồng bộ từ device.
+		if (packet?.retain && topic !== "door/password_sync") {
 			return;
 		}
 		
@@ -70,11 +70,11 @@ function connectMQTT() {
 					if (msg.toLowerCase().includes("opened")) {
 						window.isDoorOpen = true;
 						console.log("Cửa đang MỞ");
-						logUserAction(user.uid, "Cửa được mở");
+						logUserAction(user.uid, "Cửa đang mở");
 					} else if (msg.toLowerCase().includes("locked") || msg.toLowerCase().includes("closed")) {
 						window.isDoorOpen = false;
 						console.log("Cửa đang ĐÓNG");
-						logUserAction(user.uid, "Cửa được đóng");
+						logUserAction(user.uid, "Cửa đang đóng");
 					} else {
 						console.warn("Trạng thái không xác định:", msg);
 					}

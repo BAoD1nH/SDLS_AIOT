@@ -21,7 +21,7 @@ function toggleLock() {
     // Ghi log
     const user = window.firebase?.auth?.().currentUser;
     if (user) {
-        logUserAction(user.uid, "Mở khóa cửa");
+        logUserAction(user.uid, "Mở khóa cửa bằng Web");
     }
 }
 

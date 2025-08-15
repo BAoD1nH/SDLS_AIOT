@@ -23,6 +23,12 @@ bool enable2FA = false;
 String otpFromWeb = "";
 bool otpReceived = false;
 
+// --- PIN sync state ---
+bool pinSyncRequested = false;
+bool pinSyncDone = false;
+unsigned long pinSyncStart = 0;
+const unsigned long PIN_SYNC_TIMEOUT_MS = 8000; // 8s
+
 //Facerecognition
 bool faceFlowInit = false;
 bool faceVerified = false;
@@ -367,25 +373,26 @@ void callback(char* topic, byte* payload, unsigned int length) {
 	}
 	// ----------- Nhận mật khẩu mới từ Web ----------- //
 	else if (topicStr == "door/password") {
-		String newPass = msg;
+    String newPass = msg;
 
-		if (newPass.length() >= 4 && newPass.length() <= 10) { // hoặc điều kiện bạn mong muốn
+    if (newPass.length() >= 4 && newPass.length() <= 10) {
 			currentLockPassword = newPass;
-			//8.11.25 - ADD "Update password manually"
-			prefs.putString("pin", currentLockPassword); 
+			prefs.putString("pin", currentLockPassword);
 
 			Serial.print("[WEB] Đã cập nhật mật khẩu mới từ website: ");
 			Serial.println(currentLockPassword);
 			lcdShowMessage("Password Updated", "From Website");
 
-			//8.11.25 - Add to fix "Update password via web"
 			if (client.connected()) {
-				client.publish("door/password_sync", currentLockPassword.c_str(), true);
+					client.publish("door/password_sync", currentLockPassword.c_str(), true);
 			}
-		} else {
+
+			// >>> THÊM: báo về handlePinFlow là đã nhận xong
+			if (pinSyncRequested) pinSyncDone = true;   // <<<
+    } else {
 			Serial.println("[WEB] Mật khẩu mới không hợp lệ.");
 			lcdShowMessage("Pass Update Failed", "Invalid Format");
-		}
+    }
 	}
 	
 	// ----------- Nhận OTP từ Web để dùng trong 2FA ----------- //
@@ -448,7 +455,7 @@ void lockDoor() {
 
 	isDoorOpen = false;  // ✅ Cập nhật flag
 	if (client.connected()) {
-		client.publish("door/status", "Door locked");
+		client.publish("door/status", "Door locked", false);
 	}
 }
 
@@ -471,7 +478,7 @@ void unlockDoor() {
 	isDoorOpen = true;  // ✅ Cập nhật flag
 
 	if (client.connected()) {
-		client.publish("door/status", "Door opened");
+		client.publish("door/status", "Door opened", false);
 	}
 }
 
