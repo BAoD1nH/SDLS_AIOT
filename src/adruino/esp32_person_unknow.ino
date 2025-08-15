@@ -26,48 +26,12 @@
 /* Includes ---------------------------------------------------------------- */
 #include <Person_vs_unknown_inferencing.h>
 #include "edge-impulse-sdk/dsp/image/image.hpp"
-
 #include "esp_camera.h"
-
 #include <WiFi.h>
 #include <WebServer.h>
 
 // Select camera model - find more camera models in camera_pins.h file here
 // https://github.com/espressif/arduino-esp32/blob/master/libraries/ESP32/examples/Camera/CameraWebServer/camera_pins.h
-
-// Thêm đoạn HTML ngay sau phần include:
-const char INDEX_HTML[] PROGMEM = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-	<title>ESP32-CAM Inference</title>
-	<style>
-		body { font-family: sans-serif; text-align: center; }
-		img { width: 100%; max-width: 320px; }
-		#result { margin-top: 10px; font-size: 18px; }
-	</style>
-</head>
-<body>
-	<h2>ESP32-CAM Stream + Inference</h2>
-	<img src="/stream" id="cam">
-	<div id="result">Loading prediction...</div>
-
-	<script>
-		async function fetchPrediction() {
-			try {
-				const res = await fetch('/prediction');
-				const json = await res.json();
-				document.getElementById('result').innerText =
-					`Label: ${json.label}, Confidence: ${(json.confidence * 100).toFixed(2)}%`;
-			} catch (e) {
-				console.log("Error fetching prediction", e);
-			}
-		}
-		setInterval(fetchPrediction, 1000);
-	</script>
-</body>
-</html>
-)rawliteral";
 
 
 // #define CAMERA_MODEL_ESP_EYE // Has PSRAM
@@ -131,13 +95,8 @@ WebServer server(80);
 
 WiFiClient espClient;
 
-bool has_inferenced = false;
-bool image_sent = false;
-bool isStreaming = false;
-camera_fb_t *captured_frame = nullptr;
-
 unsigned long last_inference_time = 0;
-const unsigned long inference_interval = 2000;  // mỗi 2 giây
+const unsigned long inference_interval = 4000;  // mỗi 2 giây
 
 // Biến toàn cục chứa kết quả inference
 String latest_label = "unknown";
@@ -178,24 +137,21 @@ static camera_config_t camera_config = {
     .pixel_format = PIXFORMAT_JPEG, //YUV422,GRAYSCALE,RGB565,JPEG
     .frame_size = FRAMESIZE_QVGA,    //QQVGA-UXGA Do not use sizes above QVGA when not JPEG
 
-    .jpeg_quality = 12, //0-63 lower number means higher quality
-    .fb_count = 1,       //if more than one, i2s runs in continuous mode. Use only with JPEG
+    .jpeg_quality = 10, //0-63 lower number means higher quality
+    .fb_count = 2,       //if more than one, i2s runs in continuous mode. Use only with JPEG
     .fb_location = CAMERA_FB_IN_PSRAM,
-    .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
+    // .grab_mode = CAMERA_GRAB_WHEN_EMPTY,
+    .grab_mode  = CAMERA_GRAB_LATEST,   // lấy khung hình mới nhất
 };
 
 /* Function definitions ------------------------------------------------------- */
 bool ei_camera_init(void);
 void ei_camera_deinit(void);
 bool ei_camera_capture(uint32_t img_width, uint32_t img_height, uint8_t *out_buf) ;
-
+volatile bool camBusy = false;
 /**
 * @brief      Arduino setup function
 */
-
-void handleRoot() {
-	server.send_P(200, "text/html", INDEX_HTML); // bạn define chuỗi HTML này hoặc dùng SPIFFS
-}
 
 void handlePrediction() {
 	String json = "{\"label\":\"" + latest_label + "\",\"confidence\":" + String(latest_confidence, 4) + "}";
@@ -229,25 +185,59 @@ void setup()
         ei_printf("Camera initialized\r\n");
     }
 
-    // 3. Khởi tạo Web Server
-	server.on("/", HTTP_GET, []() {
-		server.send_P(200, "text/html", INDEX_HTML);
-	});
+	// server.on("/stream", HTTP_GET, []() {
+	// 	// start MJPEG stream
+	// 	stream_handler();  // bạn cần viết hoặc đã có hàm này ở file .ino
+	// });
 
-	server.on("/stream", HTTP_GET, []() {
-		// start MJPEG stream
-		stream_handler();  // bạn cần viết hoặc đã có hàm này ở file .ino
-	});
+    server.on("/jpg", HTTP_GET, []() {
+        if (camBusy) {                     // tránh tranh chấp với infer
+            server.send(503, "text/plain", "Camera busy");
+            return;
+        }
 
-	// ✅ 4. API kết quả inferencing (bạn hỏi)
+        camBusy = true;                    // khóa camera
+        camera_fb_t *fb = esp_camera_fb_get();
+        if (!fb) {
+            camBusy = false;
+            server.send(500, "text/plain", "Camera capture failed");
+            return;
+        }
+
+        WiFiClient client = server.client();
+        client.printf(
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: image/jpeg\r\n"
+            "Content-Length: %u\r\n"
+            "Cache-Control: no-store\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
+            "\r\n",
+            fb->len
+        );
+        client.write(fb->buf, fb->len);
+
+        esp_camera_fb_return(fb);
+        camBusy = false;                   // mở khóa
+    });
+
+
+    // JSON kết quả inferencing cho frontend poll
+    server.on("/prediction", HTTP_OPTIONS, [](){ // CORS preflight
+        server.sendHeader("Access-Control-Allow-Origin", "*");
+        server.sendHeader("Access-Control-Allow-Headers", "*");
+        server.sendHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+        server.send(204);
+    });
+
 	server.on("/prediction", HTTP_GET, []() {
-		String json = "{\"label\":\"" + latest_label + "\",\"confidence\":" + String(latest_confidence, 4) + "}";
-		server.send(200, "application/json", json);
-	});
+        String json = "{\"label\":\"" + latest_label +
+                        "\",\"confidence\":" + String(latest_confidence, 4) + "}";
+        server.sendHeader("Access-Control-Allow-Origin", "*"); // bật CORS
+        server.send(200, "application/json", json);
+    });
 
 	server.begin();  // ⚠️ Đừng quên dòng này!
 	ei_printf("HTTP server started\r\n");
-
 	ei_printf("\nStarting continuous inference in 2 seconds...\n");
 	ei_sleep(2000);
 
@@ -264,7 +254,7 @@ void loop()
 	server.handleClient();
 
     // Nếu chưa đủ thời gian, thì bỏ qua phần inference, nhưng KHÔNG return luôn
-	if (millis() - last_inference_time < 1000) {
+	if (millis() - last_inference_time < inference_interval) {
 		delay(10);  // Nghỉ nhẹ, tránh CPU 100%
 		return;
 	}
@@ -288,6 +278,21 @@ void loop()
     ei::signal_t signal;
     signal.total_length = EI_CLASSIFIER_INPUT_WIDTH * EI_CLASSIFIER_INPUT_HEIGHT;
     signal.get_data = &ei_camera_get_data;
+
+    //8.11.25
+    camBusy = true;
+    bool capok = ei_camera_capture(
+        (size_t)EI_CLASSIFIER_INPUT_WIDTH,
+        (size_t)EI_CLASSIFIER_INPUT_HEIGHT,
+        snapshot_buf
+    );
+    camBusy = false;
+
+    if (!capok) {
+        ei_printf("Failed to capture image\r\n");
+        free(snapshot_buf);
+        return;
+    }
 
     if (ei_camera_capture((size_t)EI_CLASSIFIER_INPUT_WIDTH, (size_t)EI_CLASSIFIER_INPUT_HEIGHT, snapshot_buf) == false) {
         ei_printf("Failed to capture image\r\n");

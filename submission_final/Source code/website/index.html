@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Door Lock</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="js/firebase.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
+    <nav class="bg-gray-800 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <img src="assets/logo.png" onerror="this.src='https://via.placeholder.com/32'" alt="MyLock Logo" class="h-8 w-8 mr-2">
+                    <a href="index.html" class="text-xl font-bold text-gray-300">MyLock</a>
+                </div>
+                <div id="nav-links" class="flex items-center space-x-4">
+                    <a href="index.html" class="bg-gray-600 text-gray-200 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-500">Home</a>
+                    <a id="dashboard-link" href="mylock.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Dashboard</a>
+                    <a id="signup-link" href="signup.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign Up</a>
+                    <a id="signin-link" href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign In</a>
+                    <div id="account-menu" class="relative hidden">
+                        <img id="account-image" src="https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png" alt="Account" class="h-10 w-10 rounded-full cursor-pointer">
+                        <div id="dropdown-menu" class="absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-50 hidden">
+                            <a href="setting.html" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Settings</a>
+                            <button onclick="logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Log Out</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div id="main-content" class="flex-grow">
+        <div class="flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-4xl w-full text-center space-y-8">
+                <div>
+                    <h1 class="text-4xl font-extrabold text-gray-200 sm:text-5xl">🔒 MyLock: Smart Door Lock System</h1>
+                    <p class="mt-4 text-lg text-gray-400">Secure access. Remote control. Real-time tracking.</p>
+                </div>
+                <div class="flex justify-center space-x-4">
+                    <a href="signin.html" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300">Sign In</a>
+                    <a href="signup.html" class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-gray-200 bg-gray-700 hover:bg-gray-600">Sign Up</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 py-12">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-200">Course</h2>
+                    <p class="mt-2 text-gray-400">This project is part of the <span class="font-medium">Embedded Systems and IoT</span> course, focusing on the development of smart, secure, and connected devices for real-world applications.</p>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-200">Project</h2>
+                    <p class="mt-2 text-gray-400">MyLock is a smart door lock system designed to provide secure access control with remote management capabilities. It features real-time monitoring, user authentication via email, and integration with IoT technologies for seamless operation.</p>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-200">Team</h2>
+                    <p class="mt-2 text-gray-400">Developed by a dedicated group of engineers passionate about IoT and security solutions. Our team combines expertise in software development, hardware integration, and user experience design to deliver a robust smart lock system.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-gray-900 py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p class="text-gray-400">© 2025 MyLock. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        function logout() {
+            firebase.auth().signOut()
+                .then(() => {
+                    alert('Đã đăng xuất thành công!');
+                    localStorage.removeItem('isLoggedIn');
+                    localStorage.removeItem('userEmail');
+                    window.location.href = 'signin.html';
+                })
+                .catch((error) => {
+                    alert('Lỗi: ' + error.message);
+                });
+        }
+
+        firebase.auth().onAuthStateChanged((user) => {
+            try {
+                const dashboardLink = document.getElementById('dashboard-link');
+                const signupLink = document.getElementById('signup-link');
+                const signinLink = document.getElementById('signin-link');
+                const accountMenu = document.getElementById('account-menu');
+                const accountImage = document.getElementById('account-image');
+                const dropdownMenu = document.getElementById('dropdown-menu');
+
+                if (user && user.emailVerified) {
+                    dashboardLink.classList.remove('hidden');
+                    signupLink.classList.add('hidden');
+                    signinLink.classList.add('hidden');
+                    accountMenu.classList.remove('hidden');
+                    localStorage.setItem('isLoggedIn', 'true');
+                    localStorage.setItem('userEmail', user.email);
+
+                    // Load avatar
+                    firebase.firestore().collection('users').doc(user.uid).get()
+                        .then((doc) => {
+                            if (doc.exists && doc.data().avatarUrl) {
+                                accountImage.src = doc.data().avatarUrl;
+                            }
+                        })
+                        .catch((error) => {
+                            console.error('Error loading avatar:', error);
+                        });
+
+                    // Remove existing event listeners
+                    const newAccountMenu = accountMenu.cloneNode(true);
+                    accountMenu.parentNode.replaceChild(newAccountMenu, accountMenu);
+                    const newDropdownMenu = newAccountMenu.querySelector('#dropdown-menu');
+
+                    let hideTimeout = null;
+
+                    const showDropdown = () => {
+                        clearTimeout(hideTimeout);
+                        newDropdownMenu.classList.remove('hidden');
+                    };
+
+                    const hideDropdown = () => {
+                        hideTimeout = setTimeout(() => {
+                            newDropdownMenu.classList.add('hidden');
+                        }, 200);
+                    };
+
+                    newAccountMenu.addEventListener('mouseenter', showDropdown);
+                    newAccountMenu.addEventListener('mouseleave', hideDropdown);
+                    newDropdownMenu.addEventListener('mouseenter', showDropdown);
+                    newDropdownMenu.addEventListener('mouseleave', hideDropdown);
+
+                    newAccountMenu.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        clearTimeout(hideTimeout);
+                        newDropdownMenu.classList.toggle('hidden');
+                    });
+
+                    document.addEventListener('click', (e) => {
+                        if (!newAccountMenu.contains(e.target)) {
+                            clearTimeout(hideTimeout);
+                            newDropdownMenu.classList.add('hidden');
+                        }
+                    });
+                } else if (user && !user.emailVerified) {
+                    window.location.href = 'verify.html';
+                } else {
+                    dashboardLink.classList.add('hidden');
+                    signupLink.classList.remove('hidden');
+                    signinLink.classList.remove('hidden');
+                    accountMenu.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error('Auth state error:', error);
+                alert('Lỗi xác thực: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>

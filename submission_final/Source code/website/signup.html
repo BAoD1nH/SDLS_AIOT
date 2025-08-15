@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - MyLock</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
+    <script type="module">
+        // Import at top level
+        import { auth, db, storage } from './js/firebase.js';
+        console.log('firebase.js imported successfully');
+
+        // Initialize Firebase
+        try {
+            console.log('Loading firebase.js module');
+            if (!firebase.apps.length) {
+                throw new Error('Firebase app not initialized in firebase.js');
+            }
+            // Ensure window.firebase is set for compatibility
+            window.firebase = firebase; // Use global firebase from compatibility SDK
+            console.log('Firebase initialized successfully');
+            console.log('FieldValue available:', !!firebase.firestore.FieldValue);
+            window.dispatchEvent(new Event('firebaseInitialized'));
+        } catch (error) {
+            console.error('Firebase module initialization failed:', error);
+            const errorDiv = document.getElementById('error-message');
+            if (errorDiv) {
+                errorDiv.textContent = 'Lỗi khởi tạo Firebase: ' + error.message;
+                errorDiv.classList.remove('hidden');
+                errorDiv.classList.add('text-red-400');
+            }
+        }
+    </script>
+    <script defer src="js/auth.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
+    <!-- Rest of your HTML remains unchanged -->
+    <nav class="bg-gray-800 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <img src="assets/logo.png" onerror="this.src='https://via.placeholder.com/32'" alt="MyLock Logo" class="h-8 w-8 mr-2">
+                    <a href="index.html" class="text-xl font-bold text-gray-300">MyLock</a>
+                </div>
+                <div id="nav-links" class="flex items-center space-x-4">
+                    <a href="index.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Home</a>
+                    <a id="signup-link" href="signup.html" class="bg-gray-600 text-gray-200 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-500">Sign Up</a>
+                    <a id="signin-link" href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Sign In</a>
+                    <div id="account-menu" class="relative hidden">
+                        <img id="account-image" src="https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png" alt="Account" class="h-10 w-10 rounded-full cursor-pointer">
+                        <div id="dropdown-menu" class="absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-50 hidden">
+                            <a href="setting.html" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Settings</a>
+                            <button onclick="window.logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Log Out</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex-grow flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-md w-full space-y-8 bg-gray-800 p-8 rounded-xl shadow-lg">
+            <div>
+                <h2 class="text-center text-3xl font-extrabold text-gray-200">Sign up for your account</h2>
+                <p class="mt-2 text-center text-sm text-gray-400">
+                    Or <a href="signin.html" class="font-medium text-gray-300 hover:text-gray-200">sign in to your account</a>
+                </p>
+            </div>
+            <div class="mt-8 space-y-6">
+                <div class="rounded-md shadow-sm -space-y-px">
+                    <div>
+                        <label for="email" class="sr-only">Email</label>
+                        <input id="email" type="email" required class="appearance-none rounded-t-md relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Email">
+                    </div>
+                    <div>
+                        <label for="password" class="sr-only">Password</label>
+                        <input id="password" type="password" required class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Password">
+                    </div>
+                    <div>
+                        <label for="confirm-password" class="sr-only">Confirm password</label>
+                        <input id="confirm-password" type="password" required class="appearance-none rounded-b-md relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" placeholder="Confirm password">
+                    </div>
+                </div>
+
+                <div>
+                    <button id="signup-btn" onclick="console.log('Sign Up button clicked'); window.signUp()" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                        Sign Up
+                    </button>
+                </div>
+                <div id="error-message" class="text-center text-sm text-red-400 hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Wait for Firebase initialization and update UI
+        window.addEventListener('firebaseInitialized', () => {
+            console.log('firebaseInitialized event received');
+            if (!firebase || !firebase.auth) {
+                const errorDiv = document.getElementById('error-message');
+                if (errorDiv) {
+                    errorDiv.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.classList.add('text-red-400');
+                }
+                console.error('Firebase not initialized after firebaseInitialized event');
+                return;
+            }
+
+            firebase.auth().onAuthStateChanged((user) => {
+                try {
+                    const signupLink = document.getElementById('signup-link');
+                    const signinLink = document.getElementById('signin-link');
+                    const accountMenu = document.getElementById('account-menu');
+                    const accountImage = document.getElementById('account-image');
+                    const dropdownMenu = document.getElementById('dropdown-menu');
+
+                    if (user && user.emailVerified) {
+                        signupLink.classList.add('hidden');
+                        signinLink.classList.add('hidden');
+                        accountMenu.classList.remove('hidden');
+
+                        firebase.firestore().collection('users').doc(user.uid).get()
+                            .then((doc) => {
+                                if (doc.exists && doc.data().avatarUrl) {
+                                    accountImage.src = doc.data().avatarUrl;
+                                }
+                            })
+                            .catch((error) => {
+                                console.error('Error loading avatar:', error);
+                            });
+
+                        const newAccountMenu = accountMenu.cloneNode(true);
+                        accountMenu.parentNode.replaceChild(newAccountMenu, accountMenu);
+                        const newDropdownMenu = newAccountMenu.querySelector('#dropdown-menu');
+
+                        let hideTimeout = null;
+
+                        const showDropdown = () => {
+                            clearTimeout(hideTimeout);
+                            newDropdownMenu.classList.remove('hidden');
+                        };
+
+                        const hideDropdown = () => {
+                            hideTimeout = setTimeout(() => {
+                                newDropdownMenu.classList.add('hidden');
+                            }, 200);
+                        };
+
+                        newAccountMenu.addEventListener('mouseenter', showDropdown);
+                        newAccountMenu.addEventListener('mouseleave', hideDropdown);
+                        newDropdownMenu.addEventListener('mouseenter', showDropdown);
+                        newDropdownMenu.addEventListener('mouseleave', hideDropdown);
+
+                        newAccountMenu.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            clearTimeout(hideTimeout);
+                            newDropdownMenu.classList.toggle('hidden');
+                        });
+
+                        document.addEventListener('click', (e) => {
+                            if (!newAccountMenu.contains(e.target)) {
+                                clearTimeout(hideTimeout);
+                                newDropdownMenu.classList.add('hidden');
+                            }
+                        });
+
+                        window.location.href = 'mylock.html';
+                    } else if (user && !user.emailVerified) {
+                        window.location.href = 'verify.html';
+                    } else {
+                        signupLink.classList.remove('hidden');
+                        signinLink.classList.remove('hidden');
+                        accountMenu.classList.add('hidden');
+                    }
+                } catch (error) {
+                    console.error('Auth state error:', error);
+                    const errorDiv = document.getElementById('error-message');
+                    if (errorDiv) {
+                        errorDiv.textContent = 'Lỗi xác thực: ' + error.message;
+                        errorDiv.classList.remove('hidden');
+                        errorDiv.classList.add('text-red-400');
+                    }
+                }
+            });
+        });
+
+        // Fallback for initialization failure
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOMContentLoaded fired');
+            setTimeout(() => {
+                if (!firebase || !firebase.auth) {
+                    const errorDiv = document.getElementById('error-message');
+                    if (errorDiv) {
+                        errorDiv.textContent = 'Lỗi: Firebase khởi tạo thất bại sau thời gian chờ.';
+                        errorDiv.classList.remove('hidden');
+                        errorDiv.classList.add('text-red-400');
+                    }
+                    console.error('Firebase initialization timed out');
+                }
+            }, 5000);
+        });
+    </script>
+</body>
+</html>
