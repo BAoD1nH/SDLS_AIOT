@@ -53,7 +53,7 @@ unsigned long lastUnlockTime = 0;
 //----------------------------------------------------  WIFI - MQTT CONFIG ----------------------------------------------------//
 const char* ssid = "Gia Bao";
 const char* password = "28092004";
-const char* mqttServer = "192.168.1.8";
+const char* mqttServer = "192.168.1.2";
 const int mqttPort = 1883;
 const char* mqttUser = "";
 const char* mqttPassword = "";
@@ -135,6 +135,9 @@ void handleFaceFlow();          // Quản lý toàn bộ flow 3FACE
 
 //---------------------------------------------------- Other functions ----------------------------------------------------//
 void softResetToSetup();  // <-- THÊM
+// --- Key helpers ---
+void flushKeypad(uint16_t stable_ms = 120);
+
 
 //----------------------------------------------------  SETUP ----------------------------------------------------//
 void setup() {
@@ -200,6 +203,7 @@ void setup() {
 void loop() {
 	// Bắt phím B toàn cục để quay về menu
 	char globalKey = keypad.getKey();
+
 	if (globalKey == 'B') {
 			// Reset toàn bộ flow
 			enablePinFlow = false;
@@ -207,14 +211,16 @@ void loop() {
 			enableFaceFlow = false;
 			enablePassChangeFlow = false;
 			auto_lock_var = false;
-
+			flushKeypad(120);
 			// Trở về menu chính
 			lcdShowUnlockOptions();
+
 			return; // Dừng loop tại đây, sang vòng sau
 	}
 	
 	if (globalKey == 'C') {           // <-- THÊM
 			softResetToSetup();           // <-- THÊM
+			flushKeypad(120);
 			return;                       // <-- THÊM
 	}
 
@@ -309,10 +315,10 @@ void reconnectMQTT() {
 			client.subscribe("door/2fa");    // ✅ Nhận tín hiệu bật/tắt 2FA
 			client.subscribe("smartlock/verify");   // face-recognition
 			
-			if (currentLockPassword.length() > 0 && client.connected()) {
-				client.publish("door/password_sync", currentLockPassword.c_str(), true);
-				Serial.println("[SYNC] Re-published current password (retained).");
-			}
+			// if (currentLockPassword.length() > 0 && client.connected()) {
+			// 	client.publish("door/password_sync", currentLockPassword.c_str(), true);
+			// 	Serial.println("[SYNC] Re-published current password (retained).");
+			// }
 		} else {
 			Serial.print("failed, rc=");
 			Serial.print(client.state());
@@ -447,14 +453,14 @@ void lockDoor() {
 }
 
 void unlockDoor() {
-	// ✅ Nếu bật 2FA thì kiểm tra OTP trước
-	if (enable2FA) {
-		if (!check2FASecurity()) {
-			Serial.println("[2FA] OTP sai hoặc timeout. Không mở cửa.");
-			lcdShowMessage("2FA Failed", "Access Denied");
-			return;
-		}
-	}
+	// Chỉ check OTP nếu 2FA bật *và* không phải luồng FACE đã verify
+  if (enable2FA && !(enableFaceFlow && faceVerified)) {
+    if (!check2FASecurity()) {
+      Serial.println("[2FA] OTP sai hoặc timeout. Không mở cửa.");
+      lcdShowMessage("2FA Failed", "Access Denied");
+      return;
+    }
+  }
 
 	// ✅ Nếu không dùng 2FA hoặc OTP đúng → mở cửa như bình thường
 	controlServo(false);
@@ -489,6 +495,8 @@ void setupPassword() {
   lcd.setCursor(0, 0);
   lcd.print("Set New Password");
   inputString = "";
+
+	flushKeypad(120);
 
   Serial.println("[SETUP] Please input new password and press * to confirm.");
 
@@ -767,8 +775,12 @@ void selectUnlockMode() {
 			passChangeLastKeyTs = millis();
 			lcdShowMessage("Enter Old PIN", "");
 			break;
+		} else if (key == 'B'){
+			lcdShowUnlockOptions();
+			flushKeypad(80);
 		} else if (key == 'C') {        // <-- THÊM
 			softResetToSetup();       // <-- THÊM
+			flushKeypad(120);
 			break;                    // <-- THÊM
 		}
 	}
@@ -793,6 +805,7 @@ void handlePinFlow() {
     initialized = false;
     enablePinFlow = false;
     lcdShowUnlockOptions();
+		flushKeypad(120);
     return;
   }
   if (key == 'C') {
@@ -800,6 +813,7 @@ void handlePinFlow() {
     initialized = false;
     enablePinFlow = false;
     softResetToSetup();
+		flushKeypad(120);
     return;
   }
 
@@ -828,12 +842,30 @@ void handlePinFlow() {
 
 void handleWebFlow() {
 	static bool waitingShown = false;
-
+	
 	// Bước 1: Hiển thị thông báo chờ web gửi lệnh (chỉ 1 lần)
 	if (!waitingShown) {
 		lcdShowMessage("Waiting for Web", "Web open...");
 		waitingShown = true;
 	}
+
+	char key = keypad.getKey();
+  if (key == 'B') {
+    // Thoát về menu
+    waitingShown = false;
+    enableWebFlow = false;    // <-- đúng flow
+    lcdShowUnlockOptions();
+    flushKeypad(120);
+    return;
+  }
+  if (key == 'C') {
+    // Reset mềm
+    waitingShown = false;
+    enableWebFlow = false;    // <-- đúng flow
+    softResetToSetup();
+    flushKeypad(120);
+    return;
+  }
 
 	// Bước 2: Nếu chưa nhận yêu cầu mở cửa từ Web → chờ tiếp
 	if (!webUnlockRequested) return;
@@ -868,6 +900,23 @@ void handleFaceFlow() {
 		// - Hoặc server subscribe topic này để chạy script DeepFace rồi publish smartlock/verify
 		// (chọn 1 luồng phù hợp với hệ thống của bạn)
 	}
+
+	// 3) Bắt phím điều hướng tại chỗ, để thoát ngay
+  char k = keypad.getKey();
+  if (k == 'B') {
+    faceFlowInit = false;
+    enableFaceFlow = false;
+    lcdShowUnlockOptions();
+    flushKeypad(120);
+    return;
+  }
+  if (k == 'C') {
+    faceFlowInit = false;
+    enableFaceFlow = false;
+    softResetToSetup();
+    flushKeypad(120);
+    return;
+  }
 
 	// Đợi kết quả từ server qua MQTT (callback sẽ set faceVerified)
 	if (faceVerified) {
@@ -917,6 +966,7 @@ void handleManualPassChangeFlow() {
     newPinCandidate = "";
     enablePassChangeFlow = false;
     lcdShowUnlockOptions();
+		flushKeypad(120);
     return;
   }
   if (key == 'C') {
@@ -926,6 +976,7 @@ void handleManualPassChangeFlow() {
     newPinCandidate = "";
     enablePassChangeFlow = false;
     softResetToSetup();
+		flushKeypad(120);
     return;
   }
 
@@ -1016,4 +1067,14 @@ void softResetToSetup() {
 
     // Quay về menu
     lcdShowUnlockOptions();
+}
+
+
+// Giữ trạng thái "không có phím nhấn" liên tục trong stable_ms
+void flushKeypad(uint16_t stable_ms) {
+  unsigned long t0 = millis();
+  while (millis() - t0 < stable_ms) {
+    if (keypad.getKey()) t0 = millis();  // nếu còn phím, gia hạn thời gian
+    delay(5);
+  }
 }

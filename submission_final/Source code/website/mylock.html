@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MyLock Dashboard</title>
+    <!-- <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script> -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <!-- Define initEmailJS inline before loading the SDK -->
+    <script>
+        function initEmailJS() {
+            if (typeof emailjs === 'undefined') {
+                console.error('EmailJS SDK not loaded. Ensure the EmailJS script is included and loaded.');
+                return false;
+            }
+            emailjs.init('ad1KuKpoS5X2I1i4P'); // Your EmailJS Public Key
+            console.log('EmailJS initialized successfully');
+            return true;
+        }
+    </script>
+
+    <!-- Primary EmailJS CDN with fallback -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4.4.1/dist/email.min.js" onload="initEmailJS()" onerror="console.error('Primary EmailJS CDN failed, trying fallback'); document.getElementById('emailjs-fallback').src='https://unpkg.com/@emailjs/browser@4.4.1/dist/email.min.js';"></script>
+    <script id="emailjs-fallback" onload="initEmailJS()" onerror="console.error('Fallback EmailJS SDK failed to load')"></script>
+    
+    <script type="module">
+        // Import at top level
+        import { auth, db, storage } from './js/firebase.js';
+        console.log('firebase.js imported successfully');
+        try {
+            console.log('Loading firebase.js module');
+            if (!firebase.apps.length) {
+                throw new Error('Firebase app not initialized in firebase.js');
+            }
+            window.firebase = { 
+                auth: () => auth, // Wrap in function to match Compat SDK
+                firestore: () => db 
+            };
+            console.log('Firebase initialized successfully');
+            window.dispatchEvent(new Event('firebaseInitialized'));
+        } catch (error) {
+            console.error('Firebase module initialization failed:', error);
+            const welcome = document.getElementById('welcome');
+            if (welcome) {
+                welcome.textContent = 'Lỗi khởi tạo Firebase: ' + error.message;
+                welcome.classList.add('text-red-400');
+            }
+        }
+    </script>
+
+    <script defer src="js/auth.js"></script>
+    <script defer src="js/mqtt.js"></script>
+    <script defer src="js/mylock.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
+    <nav class="bg-gray-800 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <img src="assets/logo.png" onerror="this.src='https://via.placeholder.com/32'" alt="MyLock Logo" class="h-8 w-8 mr-2">
+                    <a href="mylock.html" class="text-xl font-bold text-gray-300">MyLock</a>
+                </div>
+                <div id="nav-links" class="flex items-center space-x-4">
+                    <a href="mylock.html" class="bg-gray-600 text-gray-200 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-500">Dashboard</a>
+                    <a id="signup-link" href="signup.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Sign Up</a>
+                    <a id="signin-link" href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Sign In</a>
+                    <a href="face_recognition.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">FaceID</a>
+                    <div id="account-menu" class="relative hidden">
+                        <img id="account-image" src="https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png" alt="Account" class="h-10 w-10 rounded-full cursor-pointer">
+                        <div id="dropdown-menu" class="absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-50 hidden">
+                            <a href="setting.html" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Settings</a>
+                            <button onclick="window.logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Log Out</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex-grow py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-4xl mx-auto space-y-8">
+            <div class="text-center">
+                <h2 class="text-3xl font-extrabold text-gray-200">🔐 MyLock Dashboard</h2>
+                <p id="welcome" class="mt-2 text-lg text-gray-400">Đang kiểm tra phiên đăng nhập...</p>
+                <p id="door-status" class="mt-2 text-lg font-medium text-gray-200">Đang chờ trạng thái cửa...</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold text-gray-200 mb-4">Đổi Mật Khẩu Khóa</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="oldPass" class="sr-only">Mật khẩu cũ</label>
+                            <input id="oldPass" type="password" required
+                                class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
+                                placeholder="Mật khẩu cũ">
+                        </div>
+                        <div>
+                            <label for="newPass" class="sr-only">Mật khẩu mới</label>
+                            <input id="newPass" type="password" required
+                                class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
+                                placeholder="Mật khẩu mới">
+                        </div>
+                        <div>
+                            <label for="confirmNew" class="sr-only">Xác nhận mật khẩu mới</label>
+                            <input id="confirmNew" type="password" required
+                                class="appearance-none relative block w-full px-3 py-2 border border-gray-600 placeholder-gray-400 text-gray-200 bg-gray-700 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
+                                placeholder="Xác nhận mật khẩu mới">
+                        </div>
+                        <button onclick="changePassword()"
+                            class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                            Cập nhật mật khẩu khóa
+                        </button>
+                        <p id="password-error" class="mt-2 text-sm text-red-400 hidden"></p>
+                    </div>
+                </div>
+
+
+                <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h3 class="text-xl font-bold text-gray-200 mb-4">Điều khiển khóa</h3>
+                    <div class="space-y-4">
+                        <button onclick="toggleLock()" class="w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-gray-900 bg-gray-200 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                            🔄 Mở/Đóng khóa
+                        </button>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-gray-200">Xác thực hai yếu tố (2FA)</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="twoFA" class="sr-only peer" onchange="toggle2FA()">
+                                <div class="w-11 h-6 bg-gray-600 rounded-full peer-checked:bg-green-500 transition-colors"></div>
+                                <div class="absolute w-4 h-4 bg-white rounded-full top-1 left-1 transition-transform peer-checked:translate-x-5"></div>
+                            </label>
+                        </div>
+            
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                <h3 class="text-xl font-bold text-gray-200 mb-4">Lịch sử</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-700">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyList" class="divide-y divide-gray-700"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-gray-900 text-gray-400 py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p>© 2025 MyLock. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Function to initialize Firebase-dependent logic
+        function initializeFirebaseAuth(callback) {
+            if (window.firebase && window.firebase.auth) {
+                callback();
+            } else {
+                const welcome = document.getElementById('welcome');
+                welcome.textContent = 'Lỗi: Firebase chưa được khởi tạo.';
+                welcome.classList.add('text-red-400');
+                console.error('Firebase initialization failed');
+            }
+        }
+
+        // Function to format ISO date to readable format
+        function formatDate(v) {
+            const d = v && typeof v.toDate === 'function' ? v.toDate() : new Date(v);
+            if (isNaN(d?.getTime())) return '—';
+            return d.toLocaleString('vi-VN', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit', hour12: false
+            }).replace(',', '');
+        }
+
+
+        // Function to populate history table
+        function populateHistoryTable(userId) {
+            const historyList = document.getElementById('historyList');
+            historyList.innerHTML = ''; // Clear existing rows
+            window.firebase.firestore().collection('users').doc(userId).get()
+                .then((doc) => {
+                    if (doc.exists && doc.data().history && Array.isArray(doc.data().history)) {
+                        const history = (doc.data().history || []).slice().sort((a, b) => {
+                        const aMs = a?.date?.toMillis ? a.date.toMillis() : new Date(a?.date).getTime() || 0;
+                        const bMs = b?.date?.toMillis ? b.date.toMillis() : new Date(b?.date).getTime() || 0;
+                        return bMs - aMs;
+                        });
+
+                        if (history.length === 0) {
+                            historyList.innerHTML = '<tr><td colspan="2" class="px-6 py-4 text-sm text-gray-400 text-center">Không có lịch sử hoạt động.</td></tr>';
+                            return;
+                        }
+                        history.forEach((entry) => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${formatDate(entry.date)}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">${entry.action}</td>
+                            `;
+                            historyList.appendChild(row);
+                        });
+                    } else {
+                        historyList.innerHTML = '<tr><td colspan="2" class="px-6 py-4 text-sm text-gray-400 text-center">Không có lịch sử hoạt động.</td></tr>';
+                    }
+                })
+                .catch((error) => {
+                    console.error('Error loading history:', error);
+                    historyList.innerHTML = '<tr><td colspan="2" class="px-6 py-4 text-sm text-red-400 text-center">Lỗi khi tải lịch sử: ' + error.message + '</td></tr>';
+                });
+        }
+
+        // Wait for Firebase initialization
+        window.addEventListener('firebaseInitialized', () => {
+            initializeFirebaseAuth(() => {
+                function showMessage(div, message, isSuccess) {
+                    div.textContent = message;
+                    div.classList.remove('hidden', isSuccess ? 'text-red-400' : 'text-green-400');
+                    div.classList.add(isSuccess ? 'text-green-400' : 'text-red-400');
+                    setTimeout(() => div.classList.add('hidden'), 5000);
+                }
+
+                window.firebase.auth().onAuthStateChanged((user) => {
+                    try {
+                        const signupLink = document.getElementById('signup-link');
+                        const signinLink = document.getElementById('signin-link');
+                        const accountMenu = document.getElementById('account-menu');
+                        const accountImage = document.getElementById('account-image');
+                        const dropdownMenu = document.getElementById('dropdown-menu');
+                        const welcome = document.getElementById('welcome');
+                        const doorStatus = document.getElementById('door-status');
+
+                        if (user && user.emailVerified) {
+                            console.log('User authenticated:', user.email);
+                            signupLink.classList.add('hidden');
+                            signinLink.classList.add('hidden');
+                            accountMenu.classList.remove('hidden');
+                            welcome.textContent = `Chào mừng, ${user.email}!`;
+                            localStorage.setItem('isLoggedIn', 'true');
+                            localStorage.setItem('userEmail', user.email);
+
+                            // Load user data and history
+                            window.firebase.firestore().collection('users').doc(user.uid).get()
+                                .then((doc) => {
+                                    if (doc.exists && doc.data().avatarUrl) {
+                                        accountImage.src = doc.data().avatarUrl;
+                                    }
+
+                                    // ✅ ADD: Khôi phục trạng thái 2FA cho checkbox + biến toàn cục
+                                    const twoFAEl = document.getElementById('twoFA');
+                                    let twoFA = false;
+                                    if (doc.exists && typeof doc.data().twoFA === 'boolean') {
+                                    twoFA = doc.data().twoFA;       // ưu tiên giá trị trên Firestore
+                                    } else {
+                                    twoFA = localStorage.getItem('twoFA') === '1'; // fallback localStorage
+                                    }
+                                    if (twoFAEl) twoFAEl.checked = twoFA;
+                                    window.is2FAEnabled = twoFA;
+                                    localStorage.setItem('twoFA', twoFA ? '1' : '0'); // để mqtt.js đọc khi connect
+
+                                    // Populate history table
+                                    populateHistoryTable(user.uid);
+                                })
+                                .catch((error) => {
+                                    console.error('Error loading user data:', error);
+                                });
+
+                            // Set up dropdown menu
+                            const newAccountMenu = accountMenu.cloneNode(true);
+                            accountMenu.parentNode.replaceChild(newAccountMenu, accountMenu);
+                            const newDropdownMenu = newAccountMenu.querySelector('#dropdown-menu');
+
+                            let hideTimeout = null;
+
+                            const showDropdown = () => {
+                                clearTimeout(hideTimeout);
+                                newDropdownMenu.classList.remove('hidden');
+                            };
+
+                            const hideDropdown = () => {
+                                hideTimeout = setTimeout(() => {
+                                    newDropdownMenu.classList.add('hidden');
+                                }, 200);
+                            };
+
+                            newAccountMenu.addEventListener('mouseenter', showDropdown);
+                            newAccountMenu.addEventListener('mouseleave', hideDropdown);
+                            newDropdownMenu.addEventListener('mouseenter', showDropdown);
+                            newDropdownMenu.addEventListener('mouseleave', hideDropdown);
+
+                            newAccountMenu.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                clearTimeout(hideTimeout);
+                                newDropdownMenu.classList.toggle('hidden');
+                            });
+
+                            document.addEventListener('click', (e) => {
+                                if (!newAccountMenu.contains(e.target)) {
+                                    clearTimeout(hideTimeout);
+                                    newDropdownMenu.classList.add('hidden');
+                                }
+                            });
+
+                            // Initialize MQTT and set up message listener
+                            console.log('Initializing MQTT connection');
+                            connectMQTT();
+                            const interval = setInterval(() => {
+                                if (mqttClient && mqttClient.connected) {
+                                    console.log('MQTT client connected');
+                                    mqttClient.on("message", (topic, message) => {
+                                        const msg = message.toString();
+                                        if (topic === "door/status") {
+                                            console.log("📥 Trạng thái cửa từ ESP32:", msg);
+                                            if (doorStatus) {
+                                                doorStatus.textContent = msg;
+                                            }
+                                            // Refresh history on door status change
+                                            populateHistoryTable(user.uid);
+                                        }
+                                    });
+                                    clearInterval(interval);
+                                } else {
+                                    console.error('MQTT client not initialized or not connected');
+                                    if (doorStatus) {
+                                        doorStatus.textContent = 'Lỗi: Không thể kết nối MQTT.';
+                                        doorStatus.classList.add('text-red-400');
+                                    }
+                                }
+                            }, 500);
+                        } else if (user && !user.emailVerified) {
+                            console.log('User not verified, redirecting to verify.html');
+                            window.firebase.auth().signOut();
+                            localStorage.removeItem('isLoggedIn');
+                            localStorage.removeItem('userEmail');
+                            window.location.href = 'verify.html';
+                        } else {
+                            console.log('No user, redirecting to signin.html');
+                            window.location.href = 'signin.html';
+                        }
+                    } catch (error) {
+                        console.error('Auth state error:', error);
+                        welcome.textContent = 'Lỗi xác thực: ' + error.message;
+                        welcome.classList.add('text-red-400');
+                    }
+                });
+            });
+        });
+
+        // Fallback in case firebaseInitialized event is missed
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!window.firebase || !window.firebase.auth) {
+                initializeFirebaseAuth(() => {});
+            }
+        });
+    </script>
+</body>
+</html>

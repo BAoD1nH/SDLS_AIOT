@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Face Recognition - MyLock</title>
+
+	<!-- MQTT (nếu bạn dùng) -->
+	<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+	<!-- App scripts -->
+	<script defer src="js/mqtt.js"></script>
+	<script defer src="js/face_recognition.js"></script>
+
+	<!-- Tailwind -->
+	<script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-900 min-h-screen flex flex-col text-gray-200">
+
+	<!-- Navbar (giống mylock.html) -->
+	<nav class="bg-gray-800 shadow-md">
+		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+			<div class="flex justify-between h-16">
+				<div class="flex items-center">
+					<img src="assets/logo.png" onerror="this.src='https://via.placeholder.com/32'" alt="MyLock Logo" class="h-8 w-8 mr-2">
+					<a href="mylock.html" class="text-xl font-bold text-gray-300">MyLock</a>
+				</div>
+				<div id="nav-links" class="flex items-center space-x-4">
+					<a href="mylock.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
+					<a href="face_recognition.html" class="bg-gray-600 text-gray-200 px-3 py-2 rounded-md text-sm font-medium">FaceID</a>
+					<a id="signup-link" href="signup.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Sign Up</a>
+					<a id="signin-link" href="signin.html" class="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-md text-sm font-medium hidden">Sign In</a>
+					<div id="account-menu" class="relative hidden">
+						<img id="account-image" src="https://static.vecteezy.com/system/resources/thumbnails/067/602/357/small/minimalist-user-icon-free-png.png" alt="Account" class="h-10 w-10 rounded-full cursor-pointer">
+						<div id="dropdown-menu" class="absolute right-0 mt-2 w-48 bg-gray-700 rounded-md shadow-lg py-1 z-50 hidden">
+							<a href="setting.html" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Settings</a>
+							<button onclick="logout()" class="block w-full text-left px-4 py-2 text-sm text-gray-200 hover:bg-gray-600">Log Out</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</nav>
+
+	<!-- Main Content -->
+	<main class="flex-grow py-12 px-4 sm:px-6 lg:px-8">
+		<div class="max-w-4xl mx-auto space-y-10">
+
+			<div class="text-center">
+				<h2 class="text-3xl font-extrabold text-gray-200">Face Recognition</h2>
+				<p id="status" class="mt-2 text-lg text-gray-400">Sẵn sàng upload ảnh lên server local.</p>
+			</div>
+
+			<!-- Live stream từ ESP32-CAM -->
+			<section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+			<div class="flex items-center justify-between gap-4 mb-4">
+				<h3 class="text-xl font-bold text-gray-200">Live stream ESP32-CAM</h3>
+
+				<div class="flex items-center gap-2">
+				<input id="camHost"
+						class="px-3 py-2 rounded-md bg-gray-700 border border-gray-600 text-gray-200 w-64"
+						placeholder="http://192.168.1.50">
+				<button id="camConnectBtn"
+						class="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md">
+					Kết nối
+				</button>
+				</div>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+				<!-- Khung stream -->
+				<div>
+				<div class="relative w-full bg-black rounded-lg border border-gray-700 overflow-hidden">
+					<!-- Giữ tỉ lệ, không bóp méo -->
+					<img id="camStream"
+						alt="ESP32-CAM stream"
+						class="w-full h-[360px] object-contain bg-black select-none"
+						src=""
+						onerror="this.dataset.err=1">
+				</div>
+				<p id="camStreamStatus" class="mt-2 text-sm text-gray-400">
+					Chưa kết nối.
+				</p>
+				</div>
+
+				<!-- Kết quả /prediction -->
+				<div>
+				<h4 class="text-lg font-semibold text-gray-200 mb-2">Kết quả prediction</h4>
+				<div class="rounded-lg border border-gray-700 p-4">
+					<p class="text-sm text-gray-400">Label</p>
+					<p id="predLabel" class="text-xl font-semibold text-gray-100">—</p>
+
+					<p class="mt-4 text-sm text-gray-400">Confidence</p>
+					<p id="predConf" class="text-xl font-semibold text-gray-100">—</p>
+
+					<p id="predUpdated" class="mt-4 text-xs text-gray-500">Chưa có dữ liệu.</p>
+				</div>
+				</div>
+			</div>
+			</section>
+
+
+			<!-- Enroll + Registered side-by-side -->
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+			<!-- Đăng ký khuôn mặt -->
+				<section class="bg-gray-800 p-6 rounded-xl shadow-lg h-full">
+					<h3 class="text-xl font-bold mb-4">Đăng ký khuôn mặt</h3>
+					<form id="enroll-form" class="space-y-4" enctype="multipart/form-data">
+					<div>
+						<label class="block text-gray-400 mb-1">User ID</label>
+						<input id="userId" type="text" placeholder="Etc. 12345" required
+							class="w-full px-4 py-2 bg-gray-700 text-gray-200 rounded-md border border-gray-600">
+					</div>
+					<div>
+						<label class="block text-gray-400 mb-1">User Name</label>
+						<input id="userName" type="text" placeholder="Full Name" required
+							class="w-full px-4 py-2 bg-gray-700 text-gray-200 rounded-md border border-gray-600">
+					</div>
+					<div>
+						<label class="block text-gray-400 mb-1">Face image</label>
+						<input type="file" id="faceImage" accept="image/*" required
+							class="block w-full text-sm text-gray-300 bg-gray-700 border border-gray-600 rounded-lg cursor-pointer focus:outline-none">
+					</div>
+					<p id="enroll-status" class="text-sm text-red-400"></p>
+					<button type="submit"
+							class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg focus:outline-none">
+						Upload
+					</button>
+					</form>
+				</section>
+
+				<!-- Xác thực (cắt từ khối phía dưới lên đây) -->
+			
+				<section class="bg-gray-800 p-6 rounded-xl shadow-lg h-full">
+
+					<!-- Trạng thái nhận kết quả -->
+					 <h3 class="text-lg font-semibold text-gray-200 mb-2">Face detection result</h3>
+					<p id="esp32Status" class="mb-4 text-sm text-gray-400">Chưa nhận kết quả từ ESP32-CAM.</p>
+
+					<!-- Kết quả hiện tại -->
+					<h3 class="text-lg font-semibold text-gray-200 mb-2">Face Recognition Result</h3>
+					<p id="authResult" class="mb-6 text-gray-300"></p>
+
+					<!-- Lịch sử -->
+					<h3 class="text-lg font-semibold text-gray-200 mb-2">Authentication History</h3>
+					<ul id="verificationList" class="text-gray-400 space-y-2"></ul>
+				</section>
+				</div>
+
+				<!-- Danh sách người dùng đã đăng ký (dời xuống dưới full width) -->
+				<section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+				<h3 class="text-xl font-bold mb-4">Danh sách đăng ký</h3>
+				<div class="overflow-x-auto">
+					<table class="w-full text-left border border-gray-700 text-gray-300">
+					<thead>
+						<tr class="bg-gray-700 text-gray-200">
+						<th class="px-4 py-2">User ID</th>
+						<th class="px-4 py-2">User Name</th>
+						<th class="px-4 py-2">Timestamp</th>
+						<th class="px-4 py-2">Face image</th>
+						<th class="px-4 py-2">Action</th>
+						</tr>
+					</thead>
+					<tbody id="userList"></tbody>
+					</table>
+				</div>
+				</section>
+
+				<!-- Modal gallery có thể đặt ở đâu cũng được, để ở cuối trang cho gọn -->
+				<div id="galleryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70">
+				<div class="bg-gray-800 w-full max-w-4xl max-h-[85vh] rounded-2xl p-5 overflow-auto shadow-xl">
+					<div class="flex items-center justify-between mb-4">
+					<h4 id="galleryTitle" class="text-lg font-semibold text-gray-100">Ảnh người dùng</h4>
+					<button onclick="closeGallery()" class="p-2 rounded hover:bg-gray-700">✕</button>
+					</div>
+					<div id="galleryGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
+					<p id="galleryEmpty" class="text-sm text-gray-400 hidden">Người dùng này chưa có ảnh.</p>
+				</div>
+				</div>
+		</div>
+	</main>
+
+	<script>
+		window.addEventListener("DOMContentLoaded", () => {
+			if (window.connectMQTT) window.connectMQTT();
+		});
+	</script>
+
+	<!-- Footer -->
+	<footer class="bg-gray-900 text-gray-400 py-6">
+		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+			<p>© 2025 MyLock. All rights reserved.</p>
+		</div>
+	</footer>
+
+</body>
+</html>
