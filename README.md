@@ -1,8 +1,5 @@
 # Smart-Door-Lock-System-with-Face-Recognition
 
-
-# 🔐 Smart Door Lock - Website (HTML/CSS/JS + Firebase + MQTT)
-
 > A smart door lock system integrated with face recognition, featuring remote control and monitoring via a Web Interface, powered by MQTT protocol and Firebase.
 
 ## 🚀 Key Features
