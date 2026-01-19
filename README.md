@@ -1,14 +1,22 @@
 # Smart-Door-Lock-System-with-Face-Recognition
 
 > A smart door lock system integrated with face recognition, featuring remote control and monitoring via a Web Interface, powered by MQTT protocol and Firebase.
-<img width="1050" height="611" alt="Screenshot from 2026-01-19 23-35-08" src="https://github.com/user-attachments/assets/70ae2a06-74b2-4099-a266-bfb0463536a6" />
-<img width="1149" height="733" alt="Screenshot from 2026-01-19 23-25-59" src="https://github.com/user-attachments/assets/88e563fc-bbd8-47e9-8cbd-851d0f4f506f" />
-<img width="528" height="648" alt="Screenshot from 2026-01-19 23-28-13" src="https://github.com/user-attachments/assets/c5df3bd2-c62f-4dfa-afef-0973aeac9d89" />
-<img width="546" height="606" alt="Screenshot from 2026-01-19 23-28-45" src="https://github.com/user-attachments/assets/8d8338ec-4295-4e92-bf98-d991ba8db30a" />
 
-<img width="520" height="498" alt="Screenshot from 2026-01-19 23-29-54" src="https://github.com/user-attachments/assets/68079bc8-c475-41b4-81e2-d0a129d9fd46" />
-<img width="520" height="498" alt="Screenshot from 2026-01-19 23-30-00" src="https://github.com/user-attachments/assets/951bd4e1-1065-44b2-924f-8e4e05f18495" />
-<img width="520" height="498" alt="Screenshot from 2026-01-19 23-30-06" src="https://github.com/user-attachments/assets/90cd6aae-3cba-459b-8b3f-a2d76631edb3" />
+<p align="center">
+  <img width="48%" src="https://github.com/user-attachments/assets/70ae2a06-74b2-4099-a266-bfb0463536a6" />
+  <img width="48%" src="https://github.com/user-attachments/assets/9f40a509-5825-45e4-bd8c-e0c9746b4f3f" />
+</p>
+
+<p align="center">
+  <img width="48%" src="https://github.com/user-attachments/assets/7be48e6d-3320-4724-b4fd-430773813917" />
+  <img width="48%" src="https://github.com/user-attachments/assets/8d8338ec-4295-4e92-bf98-d991ba8db30a" />
+</p>
+
+<p align="center">
+  <img width="31%" src="https://github.com/user-attachments/assets/68079bc8-c475-41b4-81e2-d0a129d9fd46" />
+  <img width="31%" src="https://github.com/user-attachments/assets/951bd4e1-1065-44b2-924f-8e4e05f18495" />
+  <img width="31%" src="https://github.com/user-attachments/assets/90cd6aae-3cba-459b-8b3f-a2d76631edb3" />
+</p>
 
 
 ## 🚀 Key Features
