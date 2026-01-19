@@ -19,9 +19,8 @@
 * **Backend/Database:** Google Firebase, MQTT Broker.
 
 ## 📂 Resources
-* **Documentation & Reports:** [Google Drive Link](https://drive.google.com/drive/u/0/folders/18kOKDldTDm6pFZRxwpJJaAG9Qr4IssV3)
-* **Demo Video:** *(Insert link here if available)*
-https://drive.google.com/drive/u/0/folders/18kOKDldTDm6pFZRxwpJJaAG9Qr4IssV3
+* **Documentation & Reports:** *[Google Drive Link](https://drive.google.com/drive/folders/1VZbXMlG_8XMpnekmuLuBldt7XAZF0HcC?usp=sharing)*
+* **Demo Video:** *[Google Drive Link](https://drive.google.com/drive/u/0/folders/1bkMnTYiFPN3r1eLRinoaCSbuWMonA_jR)*
 
 ## ⚙️ Installation & Setup
 ### 📥 Clone the Repository
