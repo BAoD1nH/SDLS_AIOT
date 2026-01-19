@@ -22,6 +22,9 @@
 * **Documentation & Reports:** *[Google Drive Link](https://drive.google.com/drive/folders/1VZbXMlG_8XMpnekmuLuBldt7XAZF0HcC?usp=sharing)*
 * **Demo Video:** *[Google Drive Link](https://drive.google.com/drive/u/0/folders/1bkMnTYiFPN3r1eLRinoaCSbuWMonA_jR)*
 
+## News
+- 19-1-2026: Update Documentations (Readme)
+
 ## ⚙️ Installation & Setup
 ### 📥 Clone the Repository
 ```bash
@@ -42,16 +45,6 @@ Open **Command Prompt (CMD)** or Terminal and run the following command to start
 ```bash
 mosquitto -c "C:\Users\Bao Dinh\Documents\mosquitto.conf"
 ```
-Instructions:
-B1: Bật cmd, gõ "mosquitto -c + "<đường dẫn chứa file .conf ví dụ như C\Users\Bao Dinh\Documents\mosquitto.conf>"
--> Mosquitto.conf chạy tức là mqtt đã được khởi động 
-
-B2: Chọn mylock.html (hoặc file html nào khác), nhấn chuột phải chọn "Open with live server" (chưa có live sever thì cài extension)
-
-B3: Compile và upload code vào esp32, vào Tools > Serial monitor để xem liệu mạch đã vào wifi và kết nối MQTT thành công chưa
-
-B4: Sau đó quay về web page và F12 chọn tab console và xem message mà esp32 gửi tới web
-
 
 ## 👥 Contributors
 
@@ -59,3 +52,7 @@ B4: Sau đó quay về web page và F12 chọn tab console và xem message mà e
 | :--- | :--- | :--- |
 | **Dinh Nguyen Gia Bao** | AI Engineer, Backend, IoT (ESP32, MQTT) | [GitHub](https://github.com/BAoD1nH) |
 | **Nguyen Cong Tuan** | Frontend Engineer (Web Interface) | [GitHub](https://github.com/0Nguyen0Cong0Tuan0) |
+
+## License
+- This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- If you want to use or contribute this framework, please contact via baodinhtfb@gmail.com
