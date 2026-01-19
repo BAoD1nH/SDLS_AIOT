@@ -23,14 +23,12 @@
 * **Demo Video:** *(Insert link here if available)*
 https://drive.google.com/drive/u/0/folders/18kOKDldTDm6pFZRxwpJJaAG9Qr4IssV3
 
-## Installation
+## ⚙️ Installation & Setup
 ### 📥 Clone the Repository
 ```bash
 git clone https://github.com/BAoD1nH/SDLS_AIOT.git --recursive
 cd SDLS_AIOT
 ```
-
-# ⚙️ Installation & Setup
 
 To run this project, you need to set up the environment for both the Hardware (ESP32) and the Software (Web/MQTT Broker).
 
